@@ -51,17 +51,7 @@ function printUsage() {
 		$usage
 }
 
-function create() {
-	# print "What kind of command would you like to create?\n"
-	# local type=$(gum choose "Alias" "Script")
-
-	# if [[ $type = 'Alias' ]];then
-	# 	print "Great, creating an alias!"
-	# 	local body=
-	# elif [[ $type = 'Script' ]];then
-	# 	print "Great, creating a script!"
-	# fi
-
+function createCommand() {
 	print "What would you like to call your command?\n"
 	name=$(gum input --placeholder="Short description")
 
@@ -73,6 +63,17 @@ function create() {
 
 	print $body > "${CMDY_COMMANDS_DIR}/${name}"
 	chmod +x "${CMDY_COMMANDS_DIR}/${name}"
+}
+
+function deleteCommand() {
+	print "Which command would you like to delete?\n"
+	command=$(chooseCommand)
+	print "Are you sure?\n"
+	gum confirm && rm "${CMDY_COMMANDS_DIR}/${command}"
+}
+
+function chooseCommand() {
+	ls $CMDY_COMMANDS_DIR | gum choose
 }
 
 
@@ -93,19 +94,16 @@ if (( $#flag_verbose )); then
 	print "verbose mode"
 fi
 
-
-
-if [[ $1 = 'create' ]];then
-	create
-else
-	local command=$(ls $CMDY_COMMANDS_DIR | gum choose )
-	if [[ -n $command ]];then
-		source "${CMDY_COMMANDS_DIR}/${command}"
-	else
-		print "No command found"
-	fi
-
-fi
-
 # Do setup.
 mkdir -p ~/.cmdy/commands
+
+if [[ $1 = 'create' ]];then
+	createCommand
+elif [[ $1 = 'delete' ]];then
+	deleteCommand
+else
+	local command=$(chooseCommand)
+	if [[ -n $command ]];then
+		source "${CMDY_COMMANDS_DIR}/${command}"
+	fi
+fi
