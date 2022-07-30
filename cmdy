@@ -1,0 +1,111 @@
+#!/bin/zsh
+CMDY_DIR=~/.cmdy
+CMDY_COMMANDS_DIR="${CMDY_DIR}/commands"
+
+# zparseopts
+#
+# Resources:
+# - https://xpmo.gitlab.io/post/using-zparseopts/
+# - https://zsh.sourceforge.io/Doc/Release/Zsh-Modules.html#index-zparseopts
+#
+# Features:
+# - supports short and long flags (ie: -v|--verbose)
+# - supports short and long key/value options (ie: -f <file> | --filename <file>)
+# - does NOT support short and long key/value options with equals assignment (ie: -f=<file> | --filename=<file>)
+# - supports short option chaining (ie: -vh)
+# - everything after -- is positional even if it looks like an option (ie: -f)
+# - once we hit an arg that isn't an option flag, everything after that is considered positional
+
+local flag_help flag_verbose
+local arg_filename=(myfile)  # set a default
+
+function printUsage() {
+	local usage=(
+		"Usage:"
+		" "
+		"cmdy [-h|--help]"
+		"cmdy create"
+		"cmdy delete"
+	)
+
+	local info=(
+		" ██████ ███    ███ ██████  ██    ██ "
+		"██      ████  ████ ██   ██  ██  ██  "
+		"██      ██ ████ ██ ██   ██   ████   "
+		"██      ██  ██  ██ ██   ██    ██    "
+ 		" ██████ ██      ██ ██████     ██    "
+		" "
+		"Your friendly command line alias manager"
+		" "
+		"(it’s pronounced “commandy”)"
+	)
+
+	gum style \
+		--foreground 212 --border-foreground 212 --border rounded \
+		--align center --width 50 --margin "1 1 0 1" --padding "1 2" \
+		$info
+
+	gum style \
+		--foreground 212 --border-foreground 212 --border none \
+		--align left --width 50 --margin "0" --padding "1 2"\
+		$usage
+}
+
+function create() {
+	# print "What kind of command would you like to create?\n"
+	# local type=$(gum choose "Alias" "Script")
+
+	# if [[ $type = 'Alias' ]];then
+	# 	print "Great, creating an alias!"
+	# 	local body=
+	# elif [[ $type = 'Script' ]];then
+	# 	print "Great, creating a script!"
+	# fi
+
+	print "What would you like to call your command?\n"
+	name=$(gum input --placeholder="Short description")
+
+	print "Provide the content of your script"
+	print "(press ctrl-d when you’re done):\n"
+	body=$(gum write --placeholder="# your zsh script")
+	
+	body="#!/bin/zsh\n${body}"
+
+	print $body > "${CMDY_COMMANDS_DIR}/${name}"
+	chmod +x "${CMDY_COMMANDS_DIR}/${name}"
+}
+
+
+# -D pulls parsed flags out of $@
+# -E allows flags/args and positionals to be mixed, which we don't want in this example
+# -F says fail if we find a flag that wasn't defined
+# -M allows us to map option aliases (ie: h=flag_help -help=h)
+# -K allows us to set default values without zparseopts overwriting them
+zmodload zsh/zutil
+zparseopts -D -F -K -- \
+	{h,-help}=flag_help \
+	{v,-verbose}=flag_verbose \
+	{f,-filename}:=arg_filename ||
+	return 1
+
+[[ -z "$flag_help" ]] || { printUsage && return }
+if (( $#flag_verbose )); then
+	print "verbose mode"
+fi
+
+
+
+if [[ $1 = 'create' ]];then
+	create
+else
+	local command=$(ls $CMDY_COMMANDS_DIR | gum choose )
+	if [[ -n $command ]];then
+		source "${CMDY_COMMANDS_DIR}/${command}"
+	else
+		print "No command found"
+	fi
+
+fi
+
+# Do setup.
+mkdir -p ~/.cmdy/commands
