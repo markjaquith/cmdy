@@ -48,7 +48,7 @@ function createCommand() {
 
 	print "Create your script!"
 	print "Psst: press ctrl-d when you’re done.\n"
-	body=$(print "#!/bin/zsh\n" | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212" --prompt="")
+	body=$(print "#!/bin/zsh\n" | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
 	
 	body="#!/bin/zsh\n\n${body}"
 
@@ -65,7 +65,7 @@ function editCommand() {
 
 	print "Edit your script!"
 	print "Psst: press ctrl-d when you’re done.\n"
-	body=$(cat $command | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212" --prompt="")
+	body=$(cat $command | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
 
 	print $body > $command
 	chmod +x $command
@@ -73,31 +73,27 @@ function editCommand() {
 
 function deleteCommand() {
 	print "Which command would you like to delete?\n"
-	command=$(chooseCommand)
-	gum confirm && rm "${CMDY_COMMANDS_DIR}/${command}" && print "✅ Deleted “${command}”"
+	name=$(chooseCommand)
+	command="${CMDY_COMMANDS_DIR}/${name}"
+
+	if [[ -z $name ]]; then
+		print '{{ Color "#ff0000" "❌ You did not select a command for deletion" }}' | gum format -t template
+		return 1
+	fi
+
+	gum confirm && rm "${command}" && print "✅ Deleted “${name}”"
 }
 
 function chooseCommand() {
 	ls $CMDY_COMMANDS_DIR | gum filter --placeholder="Filter commands" --prompt="→ "
 }
 
-
-# -D pulls parsed flags out of $@
-# -E allows flags/args and positionals to be mixed, which we don't want in this example
-# -F says fail if we find a flag that wasn't defined
-# -M allows us to map option aliases (ie: h=flag_help -help=h)
-# -K allows us to set default values without zparseopts overwriting them
 zmodload zsh/zutil
 zparseopts -D -F -K -- \
 	{h,-help}=flag_help \
 	{v,-verbose}=flag_verbose \
 	{f,-filename}:=arg_filename ||
 	return 1
-
-[[ -z "$flag_help" ]] || { printUsage && return }
-if (( $#flag_verbose )); then
-	print "verbose mode"
-fi
 
 # Do setup.
 mkdir -p ~/.cmdy/commands
