@@ -2,22 +2,7 @@
 CMDY_DIR=~/.cmdy
 CMDY_COMMANDS_DIR="${CMDY_DIR}/commands"
 
-# zparseopts
-#
-# Resources:
-# - https://xpmo.gitlab.io/post/using-zparseopts/
-# - https://zsh.sourceforge.io/Doc/Release/Zsh-Modules.html#index-zparseopts
-#
-# Features:
-# - supports short and long flags (ie: -v|--verbose)
-# - supports short and long key/value options (ie: -f <file> | --filename <file>)
-# - does NOT support short and long key/value options with equals assignment (ie: -f=<file> | --filename=<file>)
-# - supports short option chaining (ie: -vh)
-# - everything after -- is positional even if it looks like an option (ie: -f)
-# - once we hit an arg that isn't an option flag, everything after that is considered positional
-
 local flag_help flag_verbose
-local arg_filename=(myfile)  # set a default
 
 function printUsage() {
 	local usage=(
@@ -52,28 +37,48 @@ function printUsage() {
 }
 
 function createCommand() {
-	print "What would you like to call your command?\n"
-	name=$(gum input --placeholder="Short description")
+	name=$(gum input --prompt "Command name: " --placeholder="A short description of your command")
 
-	print "Provide the content of your script"
-	print "(press ctrl-d when you’re done):\n"
-	body=$(gum write --placeholder="# your zsh script")
+	if [[ -z $name ]]; then
+		print '{{ Color "#ff0000" "❌ You must provide a name for your command" }}' | gum format -t template
+		return 1
+	fi
+
+	command="${CMDY_COMMANDS_DIR}/${name}"
+
+	print "Create your script!"
+	print "Psst: press ctrl-d when you’re done.\n"
+	body=$(print "#!/bin/zsh\n" | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212" --prompt="")
 	
-	body="#!/bin/zsh\n${body}"
+	body="#!/bin/zsh\n\n${body}"
 
-	print $body > "${CMDY_COMMANDS_DIR}/${name}"
-	chmod +x "${CMDY_COMMANDS_DIR}/${name}"
+	print $body > $command
+	chmod +x $command
+
+	echo ""
+}
+
+function editCommand() {
+	print "Which command would you like to edit?\n"
+	name=$(chooseCommand)
+	command="${CMDY_COMMANDS_DIR}/${name}"
+
+	print "Edit your script!"
+	print "Psst: press ctrl-d when you’re done.\n"
+	body=$(cat $command | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212" --prompt="")
+
+	print $body > $command
+	chmod +x $command
 }
 
 function deleteCommand() {
 	print "Which command would you like to delete?\n"
 	command=$(chooseCommand)
-	print "Are you sure?\n"
-	gum confirm && rm "${CMDY_COMMANDS_DIR}/${command}"
+	gum confirm && rm "${CMDY_COMMANDS_DIR}/${command}" && print "✅ Deleted “${command}”"
 }
 
 function chooseCommand() {
-	ls $CMDY_COMMANDS_DIR | gum choose
+	ls $CMDY_COMMANDS_DIR | gum filter --placeholder="Filter commands" --prompt="→ "
 }
 
 
@@ -101,9 +106,11 @@ if [[ $1 = 'create' ]];then
 	createCommand
 elif [[ $1 = 'delete' ]];then
 	deleteCommand
+elif [[ $1 = 'edit' ]];then
+	editCommand
 else
 	local command=$(chooseCommand)
 	if [[ -n $command ]];then
-		source "${CMDY_COMMANDS_DIR}/${command}"
+		"${CMDY_COMMANDS_DIR}/${command}"
 	fi
 fi
