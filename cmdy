@@ -1,6 +1,7 @@
 #!/bin/zsh
 CMDY_DIR=~/.cmdy
 CMDY_COMMANDS_DIR="${CMDY_DIR}/commands"
+CHOOSE_PROMPT="→ "
 
 local flag_help flag_verbose
 
@@ -36,63 +37,77 @@ function printUsage() {
 		$usage
 }
 
+function editInstructions() {
+		gum choose --cursor.italic --cursor.faint --cursor="
+Press return to edit your script, and ctrl-d to save" ""
+}
+
 function createCommand() {
 	name=$(gum input --prompt "Command name: " --placeholder="A short description of your command")
 
 	if [[ -z $name ]]; then
 		print '{{ Color "#ff0000" "❌ You must provide a name for your command" }}' | gum format -t template
-		return 1
+		exit 1
 	fi
 
 	command="${CMDY_COMMANDS_DIR}/${name}"
 
-	print "Create your script!"
-	print "Psst: press ctrl-d when you’re done.\n"
+	editInstructions
 	body=$(print "#!/bin/zsh\n" | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
 	
+	if [[ $? -ne 0 ]];then
+		print '{{ Color "#ff0000" "❌ Aborted command creation" }}' | gum format -t template
+		exit 1
+	fi
+
 	body="#!/bin/zsh\n\n${body}"
 
 	print $body > $command
 	chmod +x $command
 
-	echo ""
+	printf "✅ Created “${name}”\n"
 }
 
 function editCommand() {
-	print "Which command would you like to edit?\n"
 	name=$(chooseCommand)
+	if [[ -z $name ]];then
+		print '{{ Color "#ff0000" "❌ No command was chosen" }}' | gum format -t template
+		exit 1
+	fi
 	command="${CMDY_COMMANDS_DIR}/${name}"
 
-	print "Edit your script!"
-	print "Psst: press ctrl-d when you’re done.\n"
+	editInstructions
 	body=$(cat $command | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
+
+	if [[ $? -ne 0 ]];then
+		print '{{ Color "#ff0000" "❌ Aborted command edit" }}' | gum format -t template
+		exit 1
+	fi
 
 	print $body > $command
 	chmod +x $command
+
+	printf "✅ Edited “${name}”\n"
 }
 
 function deleteCommand() {
-	print "Which command would you like to delete?\n"
 	name=$(chooseCommand)
-	command="${CMDY_COMMANDS_DIR}/${name}"
-
-	if [[ -z $name ]]; then
-		print '{{ Color "#ff0000" "❌ You did not select a command for deletion" }}' | gum format -t template
-		return 1
+	if [[ -z $name ]];then
+		print '{{ Color "#ff0000" "❌ No command was chosen" }}' | gum format -t template
+		exit 1
 	fi
-
-	gum confirm && rm "${command}" && print "✅ Deleted “${name}”"
+	command="${CMDY_COMMANDS_DIR}/${name}"
+	gum confirm "Delete command?" && rm "${command}" && printf "\n✅ Deleted “${name}”\n"
 }
 
 function chooseCommand() {
-	ls $CMDY_COMMANDS_DIR | gum filter --placeholder="Filter commands" --prompt="→ "
+	ls $CMDY_COMMANDS_DIR | gum filter --placeholder="Filter commands" --prompt="$CHOOSE_PROMPT"
 }
 
 zmodload zsh/zutil
 zparseopts -D -F -K -- \
 	{h,-help}=flag_help \
-	{v,-verbose}=flag_verbose \
-	{f,-filename}:=arg_filename ||
+	{v,-verbose}=flag_verbose ||
 	return 1
 
 # Do setup.
@@ -105,7 +120,8 @@ elif [[ $1 = 'delete' ]];then
 elif [[ $1 = 'edit' ]];then
 	editCommand
 else
-	local command=$(chooseCommand)
+	local command=$(chooseCommand)	
+
 	if [[ -n $command ]];then
 		"${CMDY_COMMANDS_DIR}/${command}"
 	fi
