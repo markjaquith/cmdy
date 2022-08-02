@@ -8,7 +8,7 @@ The benefit is that you just have to remember one thing in order to re-run your 
 
 Cmdy commands are just scripts. The default shebang is `/bin/zsh`, but you can write scripts in Python, Perl, PHP, Bash, or whatever you like.
 
-Your Cmdy commands are stored in `~/.cmdy/commands`. if you symlink `~/.cmdy to Dropbox, you can sync your commands across multiple machines.
+Your Cmdy commands are stored in `~/.cmdy/commands`. if you symlink `~/.cmdy` to Dropbox, you can sync your commands across multiple machines.
 
 ## Installation
 
