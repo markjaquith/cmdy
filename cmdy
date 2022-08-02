@@ -52,13 +52,14 @@ function clearEditInstructions() {
 
 function createCommand() {
 	name=$(gum input --prompt "Command name: " --placeholder="A short description of your command")
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 
 	if [[ -z $name ]]; then
 		print '{{ Color "#ff0000" "❌ You must provide a name for your command" }}' | gum format -t template
 		exit 1
 	fi
 
-	command="${CMDY_COMMANDS_DIR}/${name}"
+	command="${CMDY_COMMANDS_DIR}/${safeName}"
 
 	editInstructions
 	body=$(printf "#!/bin/zsh\n\n" | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
@@ -83,7 +84,8 @@ function editCommand() {
 		print '{{ Color "#ff0000" "❌ No command was chosen" }}' | gum format -t template
 		exit 1
 	fi
-	command="${CMDY_COMMANDS_DIR}/${name}"
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
+	command="${CMDY_COMMANDS_DIR}/${safeName}"
 
 	editInstructions
 	body=$(cat $command | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
@@ -104,16 +106,18 @@ function editCommand() {
 
 function deleteCommand() {
 	name=$(chooseCommand)
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
+
 	if [[ -z $name ]];then
 		print '{{ Color "#ff0000" "❌ No command was chosen" }}' | gum format -t template
 		exit 1
 	fi
-	command="${CMDY_COMMANDS_DIR}/${name}"
+	command="${CMDY_COMMANDS_DIR}/${safeName}"
 	gum confirm "Delete command?" && rm "${command}" && printf "\n✅ Deleted “${name}”\n"
 }
 
 function chooseCommand() {
-	ls $CMDY_COMMANDS_DIR | gum filter --placeholder="Filter commands" --prompt="$CHOOSE_PROMPT"
+	ls $CMDY_COMMANDS_DIR | sed 's/+dot+/./g' | sed 's/+slash+/\//g' | gum filter --placeholder="Filter commands" --prompt="$CHOOSE_PROMPT"
 }
 
 zmodload zsh/zutil
@@ -138,9 +142,10 @@ elif [[ $1 = 'delete' ]];then
 elif [[ $1 = 'edit' ]];then
 	editCommand
 else
-	local command=$(chooseCommand)	
+	name=$(chooseCommand)
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 
-	if [[ -n $command ]];then
-		"${CMDY_COMMANDS_DIR}/${command}"
+	if [[ -n $safeName ]];then
+		"${CMDY_COMMANDS_DIR}/${safeName}"
 	fi
 fi
