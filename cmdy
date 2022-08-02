@@ -110,7 +110,7 @@ function deleteCommand() {
 	fi
 	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 	command="${CMDY_COMMANDS_DIR}/${safeName}"
-	gum confirm "Delete command?" && rm "${command}" && printf "\n✅ Deleted “${name}”\n"
+	gum confirm "Delete command?" && rm "${command}" && printf "✅ Deleted “${name}”\n"
 }
 
 function chooseCommand() {
