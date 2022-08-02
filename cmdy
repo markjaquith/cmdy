@@ -38,8 +38,13 @@ function printUsage() {
 }
 
 function editInstructions() {
-		gum choose --cursor.italic --cursor.faint --cursor="
-Press return to edit your script, and ctrl-d to save" ""
+	EDIT_INSTRUCTIONS="Press Esc or ctrl-d to save"
+	gum style --italic --faint "${EDIT_INSTRUCTIONS}"
+}
+
+function clearEditInstructions() {
+	printf "\33[A[2K\r"
+	printf "%*s\r" $(printf $EDIT_INSTRUCTIONS | wc -m)
 }
 
 function createCommand() {
@@ -53,14 +58,14 @@ function createCommand() {
 	command="${CMDY_COMMANDS_DIR}/${name}"
 
 	editInstructions
-	body=$(print "#!/bin/zsh\n" | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
+	body=$(printf "#!/bin/zsh\n\n" | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
 	
 	if [[ $? -ne 0 ]];then
 		print '{{ Color "#ff0000" "❌ Aborted command creation" }}' | gum format -t template
 		exit 1
 	fi
 
-	body="#!/bin/zsh\n\n${body}"
+	clearEditInstructions
 
 	print $body > $command
 	chmod +x $command
@@ -83,6 +88,8 @@ function editCommand() {
 		print '{{ Color "#ff0000" "❌ Aborted command edit" }}' | gum format -t template
 		exit 1
 	fi
+
+	clearEditInstructions
 
 	print $body > $command
 	chmod +x $command
