@@ -9,8 +9,9 @@ function printUsage() {
 	local usage=(
 		"Usage:"
 		" "
-		"cmdy [-h|--help]"
+		"cmdy"
 		"cmdy create"
+		"cmdy edit"
 		"cmdy delete"
 	)
 
@@ -21,9 +22,11 @@ function printUsage() {
 		"██      ██  ██  ██ ██   ██    ██    "
  		" ██████ ██      ██ ██████     ██    "
 		" "
-		"Your friendly command line alias manager"
+		"Your friendly command manager"
 		" "
 		"(it’s pronounced “commandy”)"
+		" "
+		"ⓒ 2022 Mark Jaquith"
 	)
 
 	gum style \
@@ -118,6 +121,12 @@ zparseopts -D -F -K -- \
 	{h,-help}=flag_help \
 	{v,-verbose}=flag_verbose ||
 	return 1
+
+[[ -z "$flag_help" ]] || { printUsage && return }
+
+if (( $#flag_verbose )); then
+       print "verbose mode"
+fi
 
 # Do setup.
 mkdir -p ~/.cmdy/commands
