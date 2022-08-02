@@ -38,7 +38,7 @@ function printUsage() {
 }
 
 function editInstructions() {
-	EDIT_INSTRUCTIONS="Press Esc or ctrl-d to save"
+	EDIT_INSTRUCTIONS="Press Esc to save"
 	gum style --italic --faint "${EDIT_INSTRUCTIONS}"
 }
 
