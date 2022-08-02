@@ -114,6 +114,11 @@ function deleteCommand() {
 }
 
 function chooseCommand() {
+	commandCount=$(ls "$CMDY_COMMANDS_DIR" | wc -l)
+
+	if [[ $commandCount -lt 1 ]]; then
+		exit 0
+	fi
 	ls $CMDY_COMMANDS_DIR | sed 's/+dot+/./g' | sed 's/+slash+/\//g' | gum filter --placeholder="Filter commands" --prompt="$CHOOSE_PROMPT"
 }
 
@@ -141,7 +146,7 @@ elif [[ $1 = 'edit' ]];then
 else
 	name=$(chooseCommand)
 
-	if [[ -n $safeName ]];then
+	if [[ -n $name ]];then
 		safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 		"${CMDY_COMMANDS_DIR}/${safeName}"
 	fi
