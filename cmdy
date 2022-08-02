@@ -52,13 +52,11 @@ function clearEditInstructions() {
 
 function createCommand() {
 	name=$(gum input --prompt "Command name: " --placeholder="A short description of your command")
-	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
-
 	if [[ -z $name ]]; then
 		print '{{ Color "#ff0000" "❌ You must provide a name for your command" }}' | gum format -t template
 		exit 1
 	fi
-
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 	command="${CMDY_COMMANDS_DIR}/${safeName}"
 
 	editInstructions
@@ -106,12 +104,11 @@ function editCommand() {
 
 function deleteCommand() {
 	name=$(chooseCommand)
-	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
-
 	if [[ -z $name ]];then
 		print '{{ Color "#ff0000" "❌ No command was chosen" }}' | gum format -t template
 		exit 1
 	fi
+	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 	command="${CMDY_COMMANDS_DIR}/${safeName}"
 	gum confirm "Delete command?" && rm "${command}" && printf "\n✅ Deleted “${name}”\n"
 }
@@ -143,9 +140,9 @@ elif [[ $1 = 'edit' ]];then
 	editCommand
 else
 	name=$(chooseCommand)
-	safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 
 	if [[ -n $safeName ]];then
+		safeName=$(printf $name | sed 's/\./+dot+/g' | sed 's/\//+slash+/g')
 		"${CMDY_COMMANDS_DIR}/${safeName}"
 	fi
 fi
