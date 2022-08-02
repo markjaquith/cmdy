@@ -53,7 +53,7 @@ function createCommand() {
 	command="${CMDY_COMMANDS_DIR}/${name}"
 
 	editInstructions
-	body=$(print "#!/bin/zsh\n" | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
+	body=$(print "#!/bin/zsh\n" | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
 	
 	if [[ $? -ne 0 ]];then
 		print '{{ Color "#ff0000" "❌ Aborted command creation" }}' | gum format -t template
@@ -77,7 +77,7 @@ function editCommand() {
 	command="${CMDY_COMMANDS_DIR}/${name}"
 
 	editInstructions
-	body=$(cat $command | gum write --height=10 --show-line-numbers --cursor-line-number.foreground="212")
+	body=$(cat $command | gum write --prompt "" --base.border rounded --height=10 --show-line-numbers --line-number.foreground 194 --cursor-line-number.foreground 194)
 
 	if [[ $? -ne 0 ]];then
 		print '{{ Color "#ff0000" "❌ Aborted command edit" }}' | gum format -t template
