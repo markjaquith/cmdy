@@ -16,6 +16,12 @@ Your Cmdy commands are stored in `~/.cmdy/commands`. if you symlink `~/.cmdy` to
 2. Download Cmdy as `cmdy` to someplace in your path: `curl https://raw.githubusercontent.com/markjaquith/cmdy/main/cmdy > /usr/local/bin/cmdy`
 3. Make Cmdy executable: `chmod +x /usr/local/bin/cmdy`
 
+## Requirements
+
+- `zsh`
+- `gum`
+- `sed`
+
 ## Usage
 
 - `cmdy` — run a command
