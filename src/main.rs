@@ -4,6 +4,7 @@ use dirs; // Import the dirs crate
 use serde::Deserialize;
 use std::{
     collections::HashMap,
+    // env, // No longer needed as cfg! is compile-time
     fs,
     path::{Path, PathBuf},
     process::Command as ProcessCommand, // Alias standard Command
@@ -21,17 +22,18 @@ pub struct CommandDef {
 
 // Defines the command-line arguments your tool accepts
 #[derive(Parser, Debug)]
-#[command(name = "cmdy", author, version, about = "Runs predefined command shortcuts.", long_about = None)]
+#[command(name = "cmdy", author, version, about = "Runs predefined commands.", long_about = None)]
 struct CliArgs {
-    /// The name of the command shortcut to execute
-    shortcut_name: Option<String>, // Make optional to allow listing commands
+    /// The name of the command command to execute
+    command_name: Option<String>, // Make optional to allow listing commands
 
     /// Optional directory to load command definitions from.
-    /// Defaults to $XDG_CONFIG_HOME/cmdy/commands or ~/.config/cmdy/commands
+    /// Defaults to $HOME/.config/cmdy/commands on Unix/macOS,
+    /// standard config dir on Windows, or platform equivalent.
     #[arg(long, value_name = "DIRECTORY")] // Add the --dir flag
     dir: Option<PathBuf>,
 
-    /// Arguments to pass to the command shortcut (captured but not used yet)
+    /// Arguments to pass to the command (captured but not used yet)
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     command_args: Vec<String>,
 }
@@ -45,23 +47,25 @@ fn main() -> Result<()> {
     // Determine the configuration directory to use
     let config_dir = determine_config_directory(&cli_args.dir)?;
 
-    println!("Using configuration directory: {:?}", config_dir); // Inform user
+    // Only print the config directory being used in debug builds
+    #[cfg(debug_assertions)]
+    println!("Using configuration directory: {:?}", config_dir);
 
     // Load all command definitions from the determined directory
     let commands = load_commands(&config_dir)
         .with_context(|| format!("Failed to load command definitions from {:?}", config_dir))?;
 
-    match cli_args.shortcut_name {
+    match cli_args.command_name {
         Some(name) => {
-            // User provided a shortcut name, find the definition
+            // User provided a command name, find the definition
             let cmd_def = find_command_definition(&name, &commands)?;
 
             // Try to execute it (passing definition and user args)
             execute_command(&name, cmd_def, &cli_args.command_args)
-                .with_context(|| format!("Failed to execute command shortcut '{}'", name))?;
+                .with_context(|| format!("Failed to execute command '{}'", name))?;
         }
         None => {
-            // No shortcut name provided, list available commands
+            // No command name provided, list available commands
             list_available_commands(&commands, &config_dir); // Pass config_dir for context
         }
     }
@@ -74,23 +78,40 @@ fn main() -> Result<()> {
 /// Determines the directory to load command definitions from.
 /// Priority:
 /// 1. --dir flag
-/// 2. $XDG_CONFIG_HOME/cmdy/commands (or platform equivalent)
-/// 3. Fallback: ./commands (if XDG path cannot be determined)
+/// 2. macOS: $HOME/.config/cmdy/commands (forced)
+/// 3. Other Unix: $XDG_CONFIG_HOME/cmdy/commands (or ~/.config/cmdy/commands)
+/// 4. Windows: Standard config dir (%APPDATA%/cmdy/commands)
+/// 5. Fallback: ./commands (if standard path cannot be determined)
 fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf> {
     if let Some(dir) = cli_dir_flag {
         // 1. Use the directory provided by the --dir flag
         Ok(dir.clone())
     } else {
-        // 2. Try to find the XDG config directory
-        match dirs::config_dir() {
-            Some(mut path) => {
+        // Determine default based on OS
+        let default_path = if cfg!(target_os = "macos") {
+            // 2. Force $HOME/.config on macOS
+            dirs::home_dir().map(|mut path| {
+                path.push(".config"); // Use .config
+                path.push("cmdy");
+                path.push("commands");
+                path
+            })
+        } else {
+            // 3. & 4. Use standard config dir for other OS (Linux, Windows, etc.)
+            dirs::config_dir().map(|mut path| {
                 path.push("cmdy"); // Append our application's folder
                 path.push("commands"); // Append the commands subfolder
-                Ok(path)
-            }
+                path
+            })
+        };
+
+        match default_path {
+            Some(path) => Ok(path),
             None => {
-                // 3. Fallback if XDG config dir is not available
-                eprintln!("Warning: Could not determine standard config directory. Falling back to './commands'.");
+                // 5. Fallback if home or config dir is not available
+                // Only print warning in debug builds
+                #[cfg(debug_assertions)]
+                eprintln!("Warning: Could not determine standard home or config directory. Falling back to './commands'.");
                 Ok(PathBuf::from("./commands"))
             }
         }
@@ -103,87 +124,93 @@ fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf>
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
     let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf()); // Attempt to get absolute path for clarity
-    println!("Attempting to load commands from: {:?}", canonical_dir); // Debug print
+
+    #[cfg(debug_assertions)]
+    println!(
+        "Attempting to load commands from: {}",
+        canonical_dir.display()
+    );
 
     // Check if directory exists before trying to read
     if !dir.is_dir() {
-        // If the specified/default directory doesn't exist, it's okay, just return empty.
-        // A warning might be useful depending on user expectation.
-        eprintln!("Info: Configuration directory not found at {:?}. No commands loaded from this location.", canonical_dir);
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "Info: Configuration directory not found at {}. No commands loaded from this location.",
+            canonical_dir.display()
+        );
         return Ok(commands); // Return empty map if dir doesn't exist
     }
 
     for entry in
-        fs::read_dir(dir).with_context(|| format!("Failed to read directory: {:?}", dir))?
+        fs::read_dir(dir).with_context(|| format!("Failed to read directory: {}", dir.display()))?
     {
         let entry = entry.context("Failed to read directory entry")?;
         let path = entry.path();
 
         // Process only if it's a file with a .toml extension
         if path.is_file() && path.extension().map_or(false, |ext| ext == "toml") {
-            // Use the filename without extension as the shortcut name
             let name = path
                 .file_stem()
                 .and_then(|stem| stem.to_str())
-                .map(|s| s.to_string()) // Convert Option<&str> to Option<String>
+                .map(|s| s.to_string())
                 .context(format!(
-                    "Could not get file stem or invalid UTF-8 for path: {:?}",
-                    path
-                ))?; // More context on error
+                    "Could not get file stem or invalid UTF-8 for path: {}",
+                    path.display()
+                ))?;
 
-            // Read file content
             let content = fs::read_to_string(&path)
-                .with_context(|| format!("Failed to read command file: {:?}", path))?;
+                .with_context(|| format!("Failed to read command file: {}", path.display()))?;
 
-            // Parse TOML content into our struct
             match toml::from_str::<CommandDef>(&content) {
                 Ok(cmd_def) => {
+                    #[cfg(debug_assertions)]
                     println!(
                         "  Loaded definition for '{}' from {:?}",
                         name,
                         path.file_name().unwrap_or_default()
-                    ); // Debug print
+                    );
                     commands.insert(name, cmd_def);
                 }
                 Err(e) => {
-                    // Provide a more specific error message if parsing fails
+                    #[cfg(debug_assertions)]
                     eprintln!(
-                        "Warning: Failed to parse TOML from file: {:?}. Error: {}",
-                        path, e
+                        "Warning: Failed to parse TOML from file: {}. Error: {}",
+                        path.display(),
+                        e
                     );
-                    // Decide whether to continue loading other files or return an error.
-                    // Continuing allows the tool to work even with some bad configs.
-                    // return Err(anyhow!("Failed to parse TOML from file: {:?} for command '{}'. Error: {}", path, name, e)); // Option to fail hard
+                    // Continue loading other files even if one fails to parse
                 }
             }
         }
     }
-    // It's okay if no .toml files were found, just return the (potentially empty) map
     Ok(commands)
 }
 
-/// Finds the command definition struct for a given shortcut name.
+/// Finds the command definition struct for a given command name.
 pub fn find_command_definition<'a>(
     name: &str,
     commands: &'a HashMap<String, CommandDef>,
 ) -> Result<&'a CommandDef> {
     commands
         .get(name)
-        .ok_or_else(|| anyhow!("Command shortcut '{}' not found.", name))
+        .ok_or_else(|| anyhow!("Command '{}' not found.", name))
 }
 
-/// Executes the specified command shortcut using its definition.
+/// Executes the specified command using its definition.
 pub fn execute_command(
     name: &str,
     cmd_def: &CommandDef,
     _cmd_args: &[String], // We receive user args but don't use them yet
 ) -> Result<()> {
+    #[cfg(debug_assertions)]
     println!("Executing '{}': {}", name, cmd_def.description);
+
+    #[cfg(debug_assertions)]
     println!("  Running: {}", cmd_def.command);
+
     // TODO: Implement argument parsing & substitution into cmd_def.command
     // TODO: Pass _cmd_args appropriately instead of just the raw template
 
-    // --- Basic Command Execution (via shell - needs improvement) ---
     let mut cmd_process = if cfg!(target_os = "windows") {
         let mut cmd = ProcessCommand::new("cmd");
         cmd.args(["/C", &cmd_def.command]);
@@ -191,49 +218,43 @@ pub fn execute_command(
     } else {
         let mut cmd = ProcessCommand::new("sh");
         cmd.arg("-c");
-        cmd.arg(&cmd_def.command); // Pass the whole command string to the shell
+        cmd.arg(&cmd_def.command);
         cmd
     };
 
-    // Execute and check status
     let status = cmd_process
         .status()
-        .with_context(|| format!("Failed to execute command for shortcut '{}'", name))?;
+        .with_context(|| format!("Failed to execute command '{}'", name))?;
 
     if !status.success() {
         anyhow::bail!("Command '{}' failed with status: {}", name, status);
     }
 
+    #[cfg(debug_assertions)]
     println!("Command '{}' executed successfully.", name);
     Ok(())
 }
 
-/// Prints a list of available command shortcuts found in the configuration.
+/// Prints a list of available commands found in the configuration.
+/// This output is essential and should appear in all builds.
 pub fn list_available_commands(commands: &HashMap<String, CommandDef>, config_dir: &Path) {
-    // Accept config_dir
     if commands.is_empty() {
-        println!("No command shortcuts defined.");
-        // Provide context about where it looked
-        println!("Looked for *.toml files in: {:?}", config_dir.display());
-        println!("Create .toml files in this directory to define shortcuts.");
+        println!("No commands defined.");
+        println!("Looked for *.toml files in: {}", config_dir.display());
+        println!("Create .toml files in this directory to define commands.");
         return;
     }
 
-    println!(
-        "Available command shortcuts (from {:?}):",
-        config_dir.display()
-    );
-    // Sort names for consistent listing
+    println!("Available commands (from {}):", config_dir.display());
     let mut names: Vec<_> = commands.keys().collect();
     names.sort();
     for name in names {
         if let Some(cmd_def) = commands.get(name) {
-            println!("  {: <15} - {}", name, cmd_def.description); // Basic formatting
+            println!("  {: <15} - {}", name, cmd_def.description);
         }
     }
-    println!("\nRun 'cmdy <shortcut_name> [args...]' to execute.");
+    println!("\nRun 'cmdy <command_name> [args...]' to execute.");
     println!("Use 'cmdy --dir <directory>' to load commands from a different location.");
-    // Add help hint
 }
 
 // --- Unit Tests ---
@@ -250,7 +271,7 @@ mod tests {
         for (name, content) in files {
             let file_path = dir_path.join(name);
             let mut file = fs::File::create(&file_path)
-                .with_context(|| format!("Failed to create test file: {:?}", file_path))?;
+                .with_context(|| format!("Failed to create test file: {}", file_path.display()))?;
             writeln!(file, "{}", content)?;
         }
         Ok(())
@@ -265,20 +286,42 @@ mod tests {
         Ok(())
     }
 
+    // Test the default path determination logic
+    // This test's behavior depends on the OS it's run on
     #[test]
-    fn test_determine_config_directory_xdg_fallback() -> Result<()> {
-        // This test relies on the `dirs` crate finding a config dir.
-        // If it doesn't, it tests the './commands' fallback.
+    fn test_determine_config_directory_default() -> Result<()> {
         let cli_dir = None;
         let result = determine_config_directory(&cli_dir)?;
 
-        if let Some(mut expected_base) = dirs::config_dir() {
-            expected_base.push("cmdy");
-            expected_base.push("commands");
-            assert_eq!(result, expected_base);
+        if cfg!(target_os = "macos") {
+            // Expect $HOME/.config/cmdy/commands on macOS
+            if let Some(mut expected_base) = dirs::home_dir() {
+                expected_base.push(".config");
+                expected_base.push("cmdy");
+                expected_base.push("commands");
+                assert_eq!(result, expected_base, "Test failed on macOS");
+            } else {
+                // If home_dir fails, expect fallback
+                assert_eq!(
+                    result,
+                    PathBuf::from("./commands"),
+                    "Test fallback failed on macOS"
+                );
+            }
         } else {
-            // If dirs::config_dir() returns None, check the fallback
-            assert_eq!(result, PathBuf::from("./commands"));
+            // Expect standard config dir on other OS (Linux, Windows)
+            if let Some(mut expected_base) = dirs::config_dir() {
+                expected_base.push("cmdy");
+                expected_base.push("commands");
+                assert_eq!(result, expected_base, "Test failed on non-macOS");
+            } else {
+                // If config_dir fails, expect fallback
+                assert_eq!(
+                    result,
+                    PathBuf::from("./commands"),
+                    "Test fallback failed on non-macOS"
+                );
+            }
         }
         Ok(())
     }
@@ -333,10 +376,10 @@ mod tests {
 
     #[test]
     fn test_load_commands_nonexistent_dir() -> Result<()> {
-        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique"); // Ensure unique path
+        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique_v3"); // Ensure unique path
         _ = fs::remove_dir_all(&dir_path); // Ensure it doesn't exist
 
-        // Expect load_commands to print info and return Ok(empty_map)
+        // Expect load_commands to print info (in debug) and return Ok(empty_map)
         let commands = load_commands(&dir_path)?;
         assert!(
             commands.is_empty(),
@@ -371,7 +414,7 @@ mod tests {
         ];
         setup_test_config(dir_path, &files)?;
 
-        // Expect load_commands to warn but succeed and load the valid file
+        // Expect load_commands to warn (in debug) but succeed and load the valid file
         let commands = load_commands(dir_path)?;
         assert_eq!(commands.len(), 1, "Should load only the valid command");
         assert!(commands.contains_key("good"));
@@ -408,10 +451,4 @@ mod tests {
         // Optional: check error message contains "not found"
         assert!(result.err().unwrap().to_string().contains("not found"));
     }
-
-    // Tests for list_available_commands would typically involve capturing stdout,
-    // which is more complex and often skipped for basic unit tests.
-
-    // Tests for execute_command are integration tests, not unit tests,
-    // because they involve running external processes.
 }
