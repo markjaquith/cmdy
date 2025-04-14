@@ -46,7 +46,6 @@ fn main() -> Result<()> {
     // Determine the configuration directory to use
     let config_dir = determine_config_directory(&cli_args.dir)?;
 
-    // Only print the config directory being used in debug builds
     #[cfg(debug_assertions)]
     println!("Using configuration directory: {:?}", config_dir);
 
@@ -64,15 +63,31 @@ fn main() -> Result<()> {
                 .with_context(|| format!("Failed to execute command '{}'", name))?;
         }
         None => {
-            // No command name provided, list available commands
-            list_available_commands(&commands, &config_dir); // Pass config_dir for context
+            print_banner();
+            list_available_commands(&commands, &config_dir);
         }
     }
 
     Ok(())
 }
 
-// --- Helper Function ---
+// --- Helper Functions ---
+
+/// Prints the application banner and information.
+fn print_banner() {
+    // Use raw string literal for easier ASCII art handling
+    println!(r#" ██████ ███    ███ ██████  ██    ██ "#);
+    println!(r#"██      ████  ████ ██   ██  ██  ██  "#);
+    println!(r#"██      ██ ████ ██ ██   ██   ████   "#);
+    println!(r#"██      ██  ██  ██ ██   ██    ██    "#);
+    println!(r#" ██████ ██      ██ ██████     ██    "#);
+    println!();
+    println!("Your friendly command manager");
+    println!();
+    println!("(it’s pronounced “commandy”)");
+    println!();
+    println!("(C) 2022-2025 Mark Jaquith"); // Using (C) for compatibility
+}
 
 /// Determines the directory to load command definitions from.
 /// Priority:
@@ -380,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_load_commands_nonexistent_dir() -> Result<()> {
-        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique_v4"); // Ensure unique path
+        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique_v6"); // Ensure unique path
         _ = fs::remove_dir_all(&dir_path); // Ensure it doesn't exist
 
         // Expect load_commands to print info (in debug) and return Ok(empty_map)
