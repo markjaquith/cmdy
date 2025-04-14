@@ -1,0 +1,2 @@
+description = "Says hello"
+command = "echo Hello World"
