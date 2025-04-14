@@ -4,7 +4,6 @@ use dirs; // Import the dirs crate
 use serde::Deserialize;
 use std::{
     collections::HashMap,
-    // env, // No longer needed as cfg! is compile-time
     fs,
     path::{Path, PathBuf},
     process::Command as ProcessCommand, // Alias standard Command
@@ -118,27 +117,32 @@ fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf>
     }
 }
 
-// --- Core Functions (Refactored for Testability) ---
+// --- Core Functions ---
 
 /// Loads all `.toml` files from the specified directory into a HashMap.
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
-    let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf()); // Attempt to get absolute path for clarity
 
     #[cfg(debug_assertions)]
-    println!(
-        "Attempting to load commands from: {}",
-        canonical_dir.display()
-    );
+    {
+        let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        println!(
+            "Attempting to load commands from: {}",
+            canonical_dir.display()
+        );
+    }
 
     // Check if directory exists before trying to read
     if !dir.is_dir() {
         #[cfg(debug_assertions)]
-        eprintln!(
-            "Info: Configuration directory not found at {}. No commands loaded from this location.",
-            canonical_dir.display()
-        );
-        return Ok(commands); // Return empty map if dir doesn't exist
+        {
+            let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+            eprintln!(
+                "Info: Configuration directory not found at {}. No commands loaded from this location.",
+                canonical_dir.display()
+            );
+        }
+        return Ok(commands);
     }
 
     for entry in
@@ -171,12 +175,12 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                     );
                     commands.insert(name, cmd_def);
                 }
-                Err(e) => {
+                Err(_e) => {
                     #[cfg(debug_assertions)]
                     eprintln!(
                         "Warning: Failed to parse TOML from file: {}. Error: {}",
                         path.display(),
-                        e
+                        _e
                     );
                     // Continue loading other files even if one fails to parse
                 }
@@ -203,10 +207,10 @@ pub fn execute_command(
     _cmd_args: &[String], // We receive user args but don't use them yet
 ) -> Result<()> {
     #[cfg(debug_assertions)]
-    println!("Executing '{}': {}", name, cmd_def.description);
-
-    #[cfg(debug_assertions)]
-    println!("  Running: {}", cmd_def.command);
+    {
+        println!("Executing '{}': {}", name, cmd_def.description);
+        println!("  Running: {}", cmd_def.command);
+    }
 
     // TODO: Implement argument parsing & substitution into cmd_def.command
     // TODO: Pass _cmd_args appropriately instead of just the raw template
@@ -376,7 +380,7 @@ mod tests {
 
     #[test]
     fn test_load_commands_nonexistent_dir() -> Result<()> {
-        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique_v3"); // Ensure unique path
+        let dir_path = PathBuf::from("./target/test_data/load_nonexistent_unique_v4"); // Ensure unique path
         _ = fs::remove_dir_all(&dir_path); // Ensure it doesn't exist
 
         // Expect load_commands to print info (in debug) and return Ok(empty_map)
