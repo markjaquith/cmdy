@@ -11,4 +11,3 @@ regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 tempfile = "3.19.1"
 toml = "0.8.20"
-validator = { version = "0.20.0", features = ["derive"] }
