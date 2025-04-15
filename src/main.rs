@@ -1,31 +1,16 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
-use dirs; // Import the dirs crate
-use regex::Regex; // For validation
+use dirs;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
-    fmt, // For custom Display impl
+    fmt,
     fs,
-    // No longer need net::IpAddr specifically for validation here
     path::{Path, PathBuf},
     process::Command as ProcessCommand, // Alias standard Command
-                                        // No longer need FromStr for IpAddr validation here
 };
 
 // --- Structs ---
-
-// Defines validation rules for a parameter (simplified)
-#[derive(Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")] // Allows TOML keys like regex = "..." or length { min=.., max=..}
-pub enum ValidationRule {
-    None, // No specific validation
-    MinLength(usize),
-    MaxLength(usize),
-    Length { min: usize, max: usize },
-    Regex(String), // Store the regex pattern as a string
-                   // Removed Email, Domain, IpAddress
-}
 
 // Represents a single parameter definition in TOML
 #[derive(Deserialize, Debug, Clone)]
@@ -37,13 +22,6 @@ pub struct ParamDef {
     pub default: Option<String>, // Single default value if argument is missing
     #[serde(default)] // Default to empty vec if not specified
     pub allowed_values: Vec<String>, // Predefined list of allowed values
-    #[serde(default = "default_validation_rule")] // Use a function for default
-    pub validation: ValidationRule, // Validation rules
-}
-
-// Function to provide the default value for `validation`
-fn default_validation_rule() -> ValidationRule {
-    ValidationRule::None
 }
 
 // Represents the data loaded from a command's TOML file
@@ -73,11 +51,12 @@ struct CliArgs {
     command_args: Vec<String>,
 }
 
-// Custom error type for parameter validation
+// Custom error type for parameter processing issues
 #[derive(Debug)]
 enum ParamError {
     MissingRequired(String),
     InvalidValue {
+        // Still needed for allowed_values check
         param_name: String,
         value: String,
         reason: String,
@@ -118,8 +97,6 @@ impl fmt::Display for ParamError {
 
 // Implement std::error::Error
 impl std::error::Error for ParamError {}
-
-// Removed EmailTarget struct
 
 // --- Main Logic ---
 
@@ -273,20 +250,6 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                         name,
                         path.file_name().unwrap_or_default()
                     );
-                    // Basic validation of parameter definitions
-                    for param in &cmd_def.params {
-                        if let ValidationRule::Regex(pattern) = &param.validation {
-                            if Regex::new(pattern).is_err() {
-                                eprintln!(
-                                    "Warning: Invalid regex pattern '{}' for parameter '{}' in command '{}'. File: {}",
-                                    pattern, param.name, name, path.display()
-                                );
-                                // Potentially skip loading this command or handle differently
-                            }
-                        }
-                        // Add more validation if needed (e.g., default value matches allowed_values)
-                    }
-
                     commands.insert(name, cmd_def);
                 }
                 Err(e) => {
@@ -314,77 +277,15 @@ pub fn find_command_definition<'a>(
         .ok_or_else(|| anyhow!("Command '{}' not found.", name))
 }
 
-/// Validates a single value against parameter definition constraints.
+/// Validates a single value against parameter definition constraints (only allowed_values).
 fn validate_parameter_value(param: &ParamDef, value: &str) -> Result<(), ParamError> {
-    // 1. Check against allowed_values if defined
+    // Check against allowed_values if defined
     if !param.allowed_values.is_empty() && !param.allowed_values.contains(&value.to_string()) {
         return Err(ParamError::InvalidValue {
             param_name: param.name.clone(),
             value: value.to_string(),
             reason: format!("Value must be one of: {:?}", param.allowed_values),
         });
-    }
-
-    // 2. Apply validation rules
-    match &param.validation {
-        ValidationRule::None => {} // No validation needed
-        ValidationRule::MinLength(min) => {
-            if value.len() < *min {
-                return Err(ParamError::InvalidValue {
-                    param_name: param.name.clone(),
-                    value: value.to_string(),
-                    reason: format!("Minimum length required is {}", min),
-                });
-            }
-        }
-        ValidationRule::MaxLength(max) => {
-            if value.len() > *max {
-                return Err(ParamError::InvalidValue {
-                    param_name: param.name.clone(),
-                    value: value.to_string(),
-                    reason: format!("Maximum length allowed is {}", max),
-                });
-            }
-        }
-        ValidationRule::Length { min, max } => {
-            if value.len() < *min || value.len() > *max {
-                return Err(ParamError::InvalidValue {
-                    param_name: param.name.clone(),
-                    value: value.to_string(),
-                    reason: format!("Length must be between {} and {}", min, max),
-                });
-            }
-        }
-        ValidationRule::Regex(pattern_str) => {
-            // Compile regex on demand - consider pre-compiling if performance is critical
-            match Regex::new(pattern_str) {
-                Ok(re) => {
-                    if !re.is_match(value) {
-                        return Err(ParamError::InvalidValue {
-                            param_name: param.name.clone(),
-                            value: value.to_string(),
-                            reason: format!("Value does not match regex pattern: {}", pattern_str),
-                        });
-                    }
-                }
-                Err(_) => {
-                    // This should ideally be caught during loading, but handle defensively
-                    eprintln!(
-                        "Warning: Invalid regex pattern '{}' encountered during validation for param '{}'. Skipping regex check.",
-                        pattern_str, param.name
-                    );
-                    // It might be better to return an error here instead of silently skipping
-                    return Err(ParamError::InvalidValue {
-                        param_name: param.name.clone(),
-                        value: value.to_string(),
-                        reason: format!(
-                            "Internal error: Invalid regex pattern configured: {}",
-                            pattern_str
-                        ),
-                    });
-                }
-            }
-        } // Removed Email, Domain, IpAddress match arms
     }
 
     Ok(())
@@ -415,12 +316,13 @@ fn process_and_substitute_args(cmd_def: &CommandDef, cmd_args: &[String]) -> Res
         let value = if i < num_args {
             // Argument provided by user
             let user_value = &cmd_args[i];
+            // Still validate against allowed_values
             validate_parameter_value(param, user_value).map_err(|e| anyhow!(e))?; // Convert ParamError to anyhow::Error
             user_value.clone()
         } else {
             // Argument not provided, check for default or required
             if let Some(default_value) = &param.default {
-                // Use default, but still validate it (in case default is invalid)
+                // Use default, but still validate it against allowed_values
                 validate_parameter_value(param, default_value)
                     .map_err(|e| anyhow!("Invalid default value for '{}': {}", param.name, e))?;
                 default_value.clone()
@@ -449,6 +351,8 @@ fn process_and_substitute_args(cmd_def: &CommandDef, cmd_args: &[String]) -> Res
 
     // --- Handle potential leftover placeholders ---
     // This regex finds patterns like {some_name}
+    // We still need regex for this placeholder check, so keep the dependency
+    use regex::Regex;
     let placeholder_re = Regex::new(r"\{[a-zA-Z0-9_]+\}").unwrap();
     if placeholder_re.is_match(&final_command) {
         // Find the first unmatched placeholder for a clearer error
@@ -484,7 +388,7 @@ pub fn execute_command(
     #[cfg(debug_assertions)]
     println!("Executing '{}': {}", name, cmd_def.description);
 
-    // Process arguments, validate, and substitute into the command template
+    // Process arguments, validate (allowed_values only), and substitute into the command template
     let command_to_run = process_and_substitute_args(cmd_def, cmd_args)
         .with_context(|| format!("Failed to process arguments for command '{}'", name))?;
 
@@ -557,20 +461,6 @@ pub fn list_available_commands(commands: &HashMap<String, CommandDef>, config_di
                     println!("      {:<13} - {}", p.name, p.description);
                     if !p.allowed_values.is_empty() {
                         println!("        Allowed: {:?}", p.allowed_values);
-                    }
-                    if p.validation != ValidationRule::None {
-                        // Make validation output slightly cleaner
-                        let validation_str = match &p.validation {
-                            ValidationRule::None => "None".to_string(), // Should not happen if check above works, but safe
-                            ValidationRule::MinLength(v) => format!("MinLength({})", v),
-                            ValidationRule::MaxLength(v) => format!("MaxLength({})", v),
-                            ValidationRule::Length { min, max } => {
-                                format!("Length({}, {})", min, max)
-                            }
-                            ValidationRule::Regex(v) => format!("Regex('{}')", v),
-                            // Removed Email, Domain, IpAddress formatting
-                        };
-                        println!("        Validation: {}", validation_str);
                     }
                 }
             }
@@ -658,15 +548,14 @@ mod tests {
                 name = "name"
                 description = "The name to greet"
                 required = true
-                validation = { min_length = 2 }
+                # Removed validation field
 
                 [[params]]
                 name = "age"
                 description = "The person's age"
                 required = false
                 default = "unknown"
-                # Note: TOML requires escaping backslashes in strings
-                validation = { regex = "^\\d+$" } # Must be digits
+                # Removed validation field
             "#,
         )];
         setup_test_config(dir_path, &files)?;
@@ -678,15 +567,9 @@ mod tests {
         assert_eq!(cmd_def.params.len(), 2);
         assert_eq!(cmd_def.params[0].name, "name");
         assert!(cmd_def.params[0].required);
-        assert_eq!(cmd_def.params[0].validation, ValidationRule::MinLength(2));
         assert_eq!(cmd_def.params[1].name, "age");
         assert!(!cmd_def.params[1].required);
         assert_eq!(cmd_def.params[1].default, Some("unknown".to_string()));
-        // Ensure the regex string is loaded correctly (double backslash in TOML -> single in Rust string)
-        assert_eq!(
-            cmd_def.params[1].validation,
-            ValidationRule::Regex("^\\d+$".to_string())
-        );
 
         Ok(())
     }
@@ -709,31 +592,6 @@ mod tests {
     }
 
     #[test]
-    fn test_load_commands_invalid_param_regex() -> Result<()> {
-        let temp_dir = tempdir()?;
-        let dir_path = temp_dir.path();
-        let files = [(
-            "bad_regex.toml",
-            r#"
-                description = "Command with bad regex"
-                command = "echo {val}"
-                [[params]]
-                name = "val"
-                description = "Value with bad regex"
-                validation = { regex = "[" } # Invalid regex
-            "#,
-        )];
-        setup_test_config(dir_path, &files)?;
-
-        // Should print a warning (in debug) but still load the command
-        let commands = load_commands(dir_path)?;
-        assert_eq!(commands.len(), 1);
-        assert!(commands.contains_key("bad_regex"));
-        // Validation will fail later at runtime if regex isn't fixed
-        Ok(())
-    }
-
-    #[test]
     fn test_process_args_success_required_and_default() -> Result<()> {
         let cmd_def = CommandDef {
             description: "Test".into(),
@@ -745,7 +603,6 @@ mod tests {
                     required: true,
                     default: None,
                     allowed_values: vec![],
-                    validation: ValidationRule::None,
                 },
                 ParamDef {
                     name: "age".into(),
@@ -753,7 +610,6 @@ mod tests {
                     required: false,
                     default: Some("30".into()),
                     allowed_values: vec![],
-                    validation: ValidationRule::None,
                 },
             ],
         };
@@ -775,7 +631,6 @@ mod tests {
                     required: true,
                     default: None,
                     allowed_values: vec![],
-                    validation: ValidationRule::None,
                 },
                 ParamDef {
                     name: "age".into(),
@@ -783,7 +638,6 @@ mod tests {
                     required: false,
                     default: Some("30".into()),
                     allowed_values: vec![],
-                    validation: ValidationRule::None,
                 },
             ],
         };
@@ -804,7 +658,6 @@ mod tests {
                 required: true,
                 default: None,
                 allowed_values: vec![],
-                validation: ValidationRule::None,
             }],
         };
         let args = vec![]; // Missing required arg
@@ -826,7 +679,6 @@ mod tests {
                 required: true,
                 default: None,
                 allowed_values: vec![],
-                validation: ValidationRule::None,
             }],
         };
         let args = vec!["Alice".to_string(), "extra".to_string()]; // Too many args
@@ -848,7 +700,6 @@ mod tests {
                 required: true,
                 default: None,
                 allowed_values: vec!["read".into(), "write".into()],
-                validation: ValidationRule::None,
             }],
         };
         let args = vec!["read".to_string()];
@@ -868,7 +719,6 @@ mod tests {
                 required: true,
                 default: None,
                 allowed_values: vec!["read".into(), "write".into()],
-                validation: ValidationRule::None,
             }],
         };
         let args = vec!["delete".to_string()]; // Not allowed
@@ -883,102 +733,17 @@ mod tests {
     }
 
     #[test]
-    fn test_process_args_validation_regex_pass() -> Result<()> {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --id={id}".into(),
-            params: vec![
-                // Note: Double backslash needed for TOML literal string, becomes single in Rust
-                ParamDef {
-                    name: "id".into(),
-                    description: "".into(),
-                    required: true,
-                    default: None,
-                    allowed_values: vec![],
-                    validation: ValidationRule::Regex("^[a-z]{3}-\\d{4}$".into()),
-                }, // e.g., abc-1234
-            ],
-        };
-        let args = vec!["xyz-9876".to_string()];
-        let result = process_and_substitute_args(&cmd_def, &args)?;
-        assert_eq!(result, "cmd --id=xyz-9876");
-        Ok(())
-    }
-
-    #[test]
-    fn test_process_args_validation_regex_fail() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --id={id}".into(),
-            params: vec![ParamDef {
-                name: "id".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec![],
-                validation: ValidationRule::Regex("^[a-z]{3}-\\d{4}$".into()),
-            }],
-        };
-        let args = vec!["abc-defg".to_string()]; // Fails regex
-        let result = process_and_substitute_args(&cmd_def, &args);
-        assert!(result.is_err());
-        let err_ref = result.as_ref().unwrap_err(); // Borrow
-        assert!(err_ref.downcast_ref::<ParamError>().is_some());
-        assert!(err_ref
-            .to_string()
-            .contains("Invalid value for parameter 'id'"));
-        assert!(err_ref.to_string().contains("does not match regex pattern"));
-    }
-
-    #[test]
-    fn test_process_args_validation_invalid_regex_config_fail() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --id={id}".into(),
-            params: vec![
-                // Invalid regex pattern defined
-                ParamDef {
-                    name: "id".into(),
-                    description: "".into(),
-                    required: true,
-                    default: None,
-                    allowed_values: vec![],
-                    validation: ValidationRule::Regex("[".into()),
-                },
-            ],
-        };
-        let args = vec!["some-value".to_string()]; // Value doesn't matter here
-        let result = process_and_substitute_args(&cmd_def, &args);
-        assert!(result.is_err());
-        let err_ref = result.as_ref().unwrap_err(); // Borrow
-        assert!(err_ref.downcast_ref::<ParamError>().is_some());
-        assert!(err_ref
-            .to_string()
-            .contains("Invalid value for parameter 'id'"));
-        // Check that the reason indicates an internal configuration error
-        assert!(err_ref
-            .to_string()
-            .contains("Internal error: Invalid regex pattern configured"));
-    }
-
-    // Removed email and IP validation tests
-
-    #[test]
     fn test_process_args_unmatched_placeholder() {
         let cmd_def = CommandDef {
             description: "Test".into(),
             command: "cmd --name={name} --extra={unprovided}".into(), // {unprovided} won't be filled
-            params: vec![
-                ParamDef {
-                    name: "name".into(),
-                    description: "".into(),
-                    required: true,
-                    default: None,
-                    allowed_values: vec![],
-                    validation: ValidationRule::None,
-                },
-                // No definition for "unprovided"
-            ],
+            params: vec![ParamDef {
+                name: "name".into(),
+                description: "".into(),
+                required: true,
+                default: None,
+                allowed_values: vec![],
+            }],
         };
         let args = vec!["Alice".to_string()];
         let result = process_and_substitute_args(&cmd_def, &args);
