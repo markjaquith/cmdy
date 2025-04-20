@@ -1,2 +1,3 @@
+[[snippets]]
 description = "Bad TOML file
 command = "echo This is broken" # Missing quotes around key

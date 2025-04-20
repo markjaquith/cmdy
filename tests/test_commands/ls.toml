@@ -1,2 +1,3 @@
+[[snippets]]
 description = "Lists directory contents"
 command = "ls -la"
