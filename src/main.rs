@@ -2,38 +2,25 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use dirs;
 use serde::Deserialize;
+use shell_escape::escape;
 use std::{
     collections::HashMap,
-    fmt,
     fs,
     path::{Path, PathBuf},
-    process::Command as ProcessCommand, // Alias standard Command
+    process::{Command as ProcessCommand, Stdio}, // Alias Command, Added Stdio
 };
 
 // --- Structs ---
 
-// Represents a single parameter definition in TOML
-#[derive(Deserialize, Debug, Clone)]
-pub struct ParamDef {
-    pub name: String, // Identifier for the parameter (used for substitution)
-    pub description: String,
-    #[serde(default)] // Default to false if not specified
-    pub required: bool,
-    pub default: Option<String>, // Single default value if argument is missing
-    #[serde(default)] // Default to empty vec if not specified
-    pub allowed_values: Vec<String>, // Predefined list of allowed values
-}
-
-// Represents the data loaded from a command's TOML file
+// Represents the data loaded from a command's TOML file (Simplified)
 #[derive(Deserialize, Debug, Clone)]
 pub struct CommandDef {
     pub description: String,
     pub command: String,
-    #[serde(default)] // Parameters are optional
-    pub params: Vec<ParamDef>, // List of parameter definitions
+    // No 'params' field anymore
 }
 
-// Defines the command-line arguments your tool accepts
+// Defines the command-line arguments your tool accepts (Unchanged)
 #[derive(Parser, Debug)]
 #[command(name = "cmdy", author, version, about = "Runs predefined commands.", long_about = None)]
 struct CliArgs {
@@ -41,85 +28,31 @@ struct CliArgs {
     command_name: Option<String>, // Make optional to allow listing commands
 
     /// Optional directory to load command definitions from.
-    /// Defaults to $HOME/.config/cmdy/commands on Unix/macOS,
-    /// standard config dir on Windows, or platform equivalent.
-    #[arg(long, value_name = "DIRECTORY")] // Add the --dir flag
+    /// Defaults to standard config locations based on OS.
+    #[arg(long, value_name = "DIRECTORY")]
     dir: Option<PathBuf>,
 
-    /// Arguments to pass to the command
+    /// Arguments to append to the command
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     command_args: Vec<String>,
 }
 
-// Custom error type for parameter processing issues
-#[derive(Debug)]
-enum ParamError {
-    MissingRequired(String),
-    InvalidValue {
-        // Still needed for allowed_values check
-        param_name: String,
-        value: String,
-        reason: String,
-    },
-    TooFewArguments(usize, usize),  // expected, got
-    TooManyArguments(usize, usize), // expected, got
-}
-
-// Implement Display for nice error messages
-impl fmt::Display for ParamError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParamError::MissingRequired(name) => {
-                write!(f, "Missing required parameter: '{}'", name)
-            }
-            ParamError::InvalidValue {
-                param_name,
-                value,
-                reason,
-            } => write!(
-                f,
-                "Invalid value for parameter '{}': '{}'. Reason: {}",
-                param_name, value, reason
-            ),
-            ParamError::TooFewArguments(expected, got) => write!(
-                f,
-                "Too few arguments provided. Expected at least {}, got {}.",
-                expected, got
-            ),
-            ParamError::TooManyArguments(expected, got) => write!(
-                f,
-                "Too many arguments provided. Expected at most {}, got {}.",
-                expected, got
-            ),
-        }
-    }
-}
-
-// Implement std::error::Error
-impl std::error::Error for ParamError {}
-
 // --- Main Logic ---
 
 fn main() -> Result<()> {
-    // Parse the command-line arguments provided by the user
     let cli_args = CliArgs::parse();
-
-    // Determine the configuration directory to use
     let config_dir = determine_config_directory(&cli_args.dir)?;
 
     #[cfg(debug_assertions)]
     println!("Using configuration directory: {:?}", config_dir);
 
-    // Load all command definitions from the determined directory
     let commands = load_commands(&config_dir)
         .with_context(|| format!("Failed to load command definitions from {:?}", config_dir))?;
 
     match cli_args.command_name {
         Some(name) => {
-            // User provided a command name, find the definition
             let cmd_def = find_command_definition(&name, &commands)?;
-
-            // Process parameters and execute the command
+            // Directly execute with appended args
             execute_command(&name, cmd_def, &cli_args.command_args)
                 .with_context(|| format!("Failed to execute command '{}'", name))?;
         }
@@ -134,48 +67,37 @@ fn main() -> Result<()> {
 
 // --- Helper Functions ---
 
-/// Prints the application banner and information.
+/// Prints the application banner and information. (Unchanged)
 fn print_banner() {
-    // Use raw string literal for easier ASCII art handling
     println!(r#" ██████ ███    ███ ██████  ██    ██ "#);
-    println!(r#"██      ████  ████ ██   ██  ██  ██  "#);
-    println!(r#"██      ██ ████ ██ ██   ██   ████   "#);
-    println!(r#"██      ██  ██  ██ ██   ██    ██    "#);
-    println!(r#" ██████ ██      ██ ██████     ██    "#);
+    println!(r#"██      ████  ████ ██   ██ ██  ██  "#);
+    println!(r#"██      ██ ████ ██ ██   ██  ████   "#);
+    println!(r#"██      ██  ██  ██ ██   ██   ██    "#);
+    println!(r#" ██████ ██      ██ ██████    ██    "#);
     println!();
     println!("Your friendly command manager");
     println!();
     println!("(it’s pronounced “commandy”)");
     println!();
-    println!("(C) 2022-2025 Mark Jaquith"); // Using (C) for compatibility
+    println!("(C) 2022-2025 Mark Jaquith"); // Assuming current date is 2025 based on context prompt
 }
 
-/// Determines the directory to load command definitions from.
-/// Priority:
-/// 1. --dir flag
-/// 2. macOS: $HOME/.config/cmdy/commands (forced)
-/// 3. Other Unix: $XDG_CONFIG_HOME/cmdy/commands (or ~/.config/cmdy/commands)
-/// 4. Windows: Standard config dir (%APPDATA%/cmdy/commands)
-/// 5. Fallback: ./commands (if standard path cannot be determined)
+/// Determines the directory to load command definitions from. (Unchanged)
 fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf> {
     if let Some(dir) = cli_dir_flag {
-        // 1. Use the directory provided by the --dir flag
         Ok(dir.clone())
     } else {
-        // Determine default based on OS
         let default_path = if cfg!(target_os = "macos") {
-            // 2. Force $HOME/.config on macOS
             dirs::home_dir().map(|mut path| {
-                path.push(".config"); // Use .config
+                path.push(".config"); // Use .config consistently
                 path.push("cmdy");
                 path.push("commands");
                 path
             })
         } else {
-            // 3. & 4. Use standard config dir for other OS (Linux, Windows, etc.)
             dirs::config_dir().map(|mut path| {
-                path.push("cmdy"); // Append our application's folder
-                path.push("commands"); // Append the commands subfolder
+                path.push("cmdy");
+                path.push("commands");
                 path
             })
         };
@@ -183,8 +105,6 @@ fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf>
         match default_path {
             Some(path) => Ok(path),
             None => {
-                // 5. Fallback if home or config dir is not available
-                // Only print warning in debug builds
                 #[cfg(debug_assertions)]
                 eprintln!("Warning: Could not determine standard home or config directory. Falling back to './commands'.");
                 Ok(PathBuf::from("./commands"))
@@ -195,27 +115,27 @@ fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf>
 
 // --- Core Functions ---
 
-/// Loads all `.toml` files from the specified directory into a HashMap.
+/// Loads all `.toml` files from the specified directory into a HashMap. (Logic Unchanged, uses simpler CommandDef)
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
 
     #[cfg(debug_assertions)]
     {
-        let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        // Attempt to get canonical path for clearer debug messages
+        let canonical_dir_display = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
         println!(
             "Attempting to load commands from: {}",
-            canonical_dir.display()
+            canonical_dir_display.display()
         );
     }
 
-    // Check if directory exists before trying to read
     if !dir.is_dir() {
         #[cfg(debug_assertions)]
         {
-            let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+            let canonical_dir_display = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
             eprintln!(
                 "Info: Configuration directory not found at {}. No commands loaded from this location.",
-                canonical_dir.display()
+                canonical_dir_display.display()
             );
         }
         // It's not an error if the default dir doesn't exist, just return empty.
@@ -228,7 +148,6 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
         let entry = entry.context("Failed to read directory entry")?;
         let path = entry.path();
 
-        // Process only if it's a file with a .toml extension
         if path.is_file() && path.extension().map_or(false, |ext| ext == "toml") {
             let name = path
                 .file_stem()
@@ -243,21 +162,22 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                 .with_context(|| format!("Failed to read command file: {}", path.display()))?;
 
             match toml::from_str::<CommandDef>(&content) {
+                // Parses the simplified CommandDef
                 Ok(cmd_def) => {
                     #[cfg(debug_assertions)]
                     println!(
                         "  Loaded definition for '{}' from {:?}",
                         name,
-                        path.file_name().unwrap_or_default()
+                        path.file_name().unwrap_or_default() // Use default OsStr if no filename
                     );
                     commands.insert(name, cmd_def);
                 }
                 Err(e) => {
-                    // Provide more context on TOML parsing errors
+                    // Warning remains useful if TOML is malformed or has unexpected fields (like old 'params')
                     eprintln!(
                         "Warning: Failed to parse TOML from file: {}. Error: {}",
                         path.display(),
-                        e // Print the actual error
+                        e
                     );
                     // Continue loading other files even if one fails to parse
                 }
@@ -267,7 +187,7 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     Ok(commands)
 }
 
-/// Finds the command definition struct for a given command name.
+/// Finds the command definition struct for a given command name. (Unchanged)
 pub fn find_command_definition<'a>(
     name: &str,
     commands: &'a HashMap<String, CommandDef>,
@@ -277,109 +197,7 @@ pub fn find_command_definition<'a>(
         .ok_or_else(|| anyhow!("Command '{}' not found.", name))
 }
 
-/// Validates a single value against parameter definition constraints (only allowed_values).
-fn validate_parameter_value(param: &ParamDef, value: &str) -> Result<(), ParamError> {
-    // Check against allowed_values if defined
-    if !param.allowed_values.is_empty() && !param.allowed_values.contains(&value.to_string()) {
-        return Err(ParamError::InvalidValue {
-            param_name: param.name.clone(),
-            value: value.to_string(),
-            reason: format!("Value must be one of: {:?}", param.allowed_values),
-        });
-    }
-
-    Ok(())
-}
-
-/// Processes arguments based on parameter definitions and substitutes them into the command string.
-fn process_and_substitute_args(cmd_def: &CommandDef, cmd_args: &[String]) -> Result<String> {
-    let mut processed_args = HashMap::new();
-    let num_params = cmd_def.params.len();
-    let num_args = cmd_args.len();
-
-    // --- Argument Count Check ---
-    let required_params = cmd_def.params.iter().filter(|p| p.required).count();
-    if num_args < required_params {
-        bail!(ParamError::TooFewArguments(required_params, num_args));
-    }
-    if num_args > num_params {
-        // Allow extra args only if there are no defined params, otherwise it's an error
-        // Or, could add a specific flag to allow extra args later.
-        if num_params > 0 {
-            bail!(ParamError::TooManyArguments(num_params, num_args));
-        }
-        // If no params defined, let all args pass through (or handle differently if needed)
-    }
-
-    // --- Process each defined parameter ---
-    for (i, param) in cmd_def.params.iter().enumerate() {
-        let value = if i < num_args {
-            // Argument provided by user
-            let user_value = &cmd_args[i];
-            // Still validate against allowed_values
-            validate_parameter_value(param, user_value).map_err(|e| anyhow!(e))?; // Convert ParamError to anyhow::Error
-            user_value.clone()
-        } else {
-            // Argument not provided, check for default or required
-            if let Some(default_value) = &param.default {
-                // Use default, but still validate it against allowed_values
-                validate_parameter_value(param, default_value)
-                    .map_err(|e| anyhow!("Invalid default value for '{}': {}", param.name, e))?;
-                default_value.clone()
-            } else if param.required {
-                // Should have been caught by the initial count check, but defensive check
-                bail!(ParamError::MissingRequired(param.name.clone()));
-            } else {
-                // Optional parameter without default, treat as empty string or skip substitution?
-                // Let's treat as empty for substitution purposes.
-                String::new()
-            }
-        };
-        processed_args.insert(param.name.clone(), value);
-    }
-
-    // --- Substitution ---
-    let mut final_command = cmd_def.command.clone();
-    for (name, value) in processed_args {
-        let placeholder = format!("{{{}}}", name); // e.g., {filename}
-                                                   // Ensure value is properly escaped for shell command if necessary.
-                                                   // Simple replacement might be okay if commands are trusted, but consider
-                                                   // using libraries like `shellexpand` or careful quoting if values
-                                                   // can contain special characters. For now, direct replacement.
-        final_command = final_command.replace(&placeholder, &value);
-    }
-
-    // --- Handle potential leftover placeholders ---
-    // This regex finds patterns like {some_name}
-    // We still need regex for this placeholder check, so keep the dependency
-    use regex::Regex;
-    let placeholder_re = Regex::new(r"\{[a-zA-Z0-9_]+\}").unwrap();
-    if placeholder_re.is_match(&final_command) {
-        // Find the first unmatched placeholder for a clearer error
-        let unmatched = placeholder_re
-            .find(&final_command)
-            .map_or("unknown", |m| m.as_str());
-        bail!("Command template still contains unsubstituted placeholder(s) like '{}'. Check parameter definitions and names.", unmatched);
-    }
-
-    // --- Handle extra arguments if no params were defined ---
-    // If cmd_def.params is empty, append all cmd_args directly?
-    // Current logic errors if args > params when params are defined.
-    // If you want to allow extra args to be appended when NO params are defined:
-    // if num_params == 0 && num_args > 0 {
-    //     // Add the shellexpand crate: `shellexpand = "3.1"`
-    //     use shellexpand;
-    //     for arg in cmd_args {
-    //         final_command.push(' ');
-    //         // Basic shell escaping (might need more robust solution depending on shell/OS)
-    //         final_command.push_str(&shellexpand::escape(arg));
-    //     }
-    // }
-
-    Ok(final_command)
-}
-
-/// Executes the specified command using its definition and processed arguments.
+/// Executes the specified command, appending any provided arguments safely quoted.
 pub fn execute_command(
     name: &str,
     cmd_def: &CommandDef,
@@ -388,34 +206,61 @@ pub fn execute_command(
     #[cfg(debug_assertions)]
     println!("Executing '{}': {}", name, cmd_def.description);
 
-    // Process arguments, validate (allowed_values only), and substitute into the command template
-    let command_to_run = process_and_substitute_args(cmd_def, cmd_args)
-        .with_context(|| format!("Failed to process arguments for command '{}'", name))?;
+    // Start with the base command defined in the TOML
+    let mut command_to_run = cmd_def.command.clone();
+
+    // Append each user-provided argument, escaped/quoted for the shell
+    for arg in cmd_args {
+        command_to_run.push(' '); // Add a space separator
+
+        if cfg!(target_os = "windows") {
+            // Basic quoting for cmd.exe: wrap in double quotes if it contains spaces or is empty.
+            // Note: This is a heuristic and might not cover all edge cases for cmd.exe's complex parsing.
+            if arg.is_empty() || arg.contains(char::is_whitespace) || arg.contains('"') {
+                // Added check for quotes
+                command_to_run.push('"');
+                // Basic escape for internal quotes (double them up for cmd.exe) - still imperfect
+                command_to_run.push_str(&arg.replace('"', "\"\""));
+                command_to_run.push('"');
+            } else {
+                command_to_run.push_str(arg); // No spaces or quotes, append directly
+            }
+        } else {
+            // --- LLM CHANGE START ---
+            // Use shell_escape::escape for robust Bourne shell (sh, bash, zsh) escaping.
+            // It returns a Cow<str>, which dereferences to &str.
+            // .into() converts the &String to the Cow<str> expected by escape.
+            let escaped_arg = escape(arg.into());
+            command_to_run.push_str(&escaped_arg);
+            // --- LLM CHANGE END ---
+        }
+    }
 
     #[cfg(debug_assertions)]
-    println!("  Processed Command: {}", command_to_run);
+    println!("  Final Command String: {}", command_to_run);
 
-    // Execute the final command string
+    // Execute the final command string using the shell
     let mut cmd_process = if cfg!(target_os = "windows") {
         let mut cmd = ProcessCommand::new("cmd");
-        cmd.args(["/C", &command_to_run]);
+        cmd.args(["/C", &command_to_run]); // Use /C to execute the command string
         cmd
     } else {
         let mut cmd = ProcessCommand::new("sh");
-        cmd.arg("-c");
+        cmd.arg("-c"); // Use -c to execute the command string
         cmd.arg(&command_to_run);
         cmd
     };
 
-    // Consider inheriting stdio for interactive commands or capturing output
-    // cmd_process.stdout(Stdio::inherit()).stderr(Stdio::inherit());
-
+    // Inherit stdio for interactive commands or seeing output/errors
     let status = cmd_process
-        .status()
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status() // Execute and wait for status
         .with_context(|| format!("Failed to start command '{}'", name))?;
 
     if !status.success() {
-        // Provide more info if the command fails (e.g., exit code)
+        // Provide more info if the command fails
         bail!("Command '{}' failed with status: {}", name, status);
     }
 
@@ -424,51 +269,31 @@ pub fn execute_command(
     Ok(())
 }
 
-/// Prints a list of available commands and their parameters.
+/// Prints a list of available commands and their descriptions. (Modified)
 pub fn list_available_commands(commands: &HashMap<String, CommandDef>, config_dir: &Path) {
     if commands.is_empty() {
         println!("No commands defined.");
         println!("Looked for *.toml files in: {}", config_dir.display());
-        println!("Create .toml files in this directory to define commands.");
+        println!("Create .toml files in this directory to define commands like:");
+        println!("  description = \"Your command description\"");
+        println!("  command = \"your command string\"");
         return;
     }
 
     println!("Available commands (from {}):", config_dir.display());
     let mut names: Vec<_> = commands.keys().collect();
-    names.sort();
+    names.sort(); // Sort command names alphabetically for consistent listing
     for name in names {
         if let Some(cmd_def) = commands.get(name) {
+            // Only print name and description, aligned
             println!("  {: <15} - {}", name, cmd_def.description);
-            // List parameters if any
-            if !cmd_def.params.is_empty() {
-                print!("    Params: ");
-                let param_details: Vec<String> = cmd_def
-                    .params
-                    .iter()
-                    .map(|p| {
-                        let req = if p.required { "*" } else { "" };
-                        let def = p
-                            .default
-                            .as_ref()
-                            .map_or("".to_string(), |d| format!("[={}]", d));
-                        // Use name for the placeholder indicator
-                        format!("<{}{}{}>", p.name, req, def)
-                    })
-                    .collect();
-                println!("{}", param_details.join(" "));
-                // Optionally print descriptions too
-                for p in &cmd_def.params {
-                    println!("      {:<13} - {}", p.name, p.description);
-                    if !p.allowed_values.is_empty() {
-                        println!("        Allowed: {:?}", p.allowed_values);
-                    }
-                }
-            }
+            // Removed the parameter listing block
         }
     }
     println!("\nRun 'cmdy <command_name> [args...]' to execute.");
+    println!("Any [args...] will be appended to the command string.");
     println!("Use 'cmdy --dir <directory>' to load commands from a different location.");
-    println!("'*' indicates a required parameter. '[=default]' indicates a default value.");
+    // Removed help text about parameters
 }
 
 // --- Unit Tests ---
@@ -481,9 +306,10 @@ mod tests {
 
     // Helper function to create a temporary directory and files for testing
     fn setup_test_config(dir_path: &Path, files: &[(&str, &str)]) -> Result<()> {
-        fs::create_dir_all(dir_path)?; // Ensure parent exists if needed
+        fs::create_dir_all(dir_path)?;
         for (name, content) in files {
-            let file_path = dir_path.join(name);
+            // Ensure .toml extension is added here
+            let file_path = dir_path.join(format!("{}.toml", name));
             let mut file = fs::File::create(&file_path)
                 .with_context(|| format!("Failed to create test file: {}", file_path.display()))?;
             writeln!(file, "{}", content)?;
@@ -493,7 +319,10 @@ mod tests {
 
     #[test]
     fn test_determine_config_directory_flag_override() -> Result<()> {
-        let flag_path = PathBuf::from("/tmp/custom_cmdy_dir");
+        // Use a more specific test path if possible
+        let flag_path = tempdir()?.path().join("custom_cmdy_dir_test");
+        // Ensure the path exists for canonicalization checks if needed, or handle errors
+        // fs::create_dir_all(&flag_path)?;
         let cli_dir = Some(flag_path.clone());
         let result = determine_config_directory(&cli_dir)?;
         assert_eq!(result, flag_path);
@@ -505,71 +334,69 @@ mod tests {
         let cli_dir = None;
         let result = determine_config_directory(&cli_dir)?;
 
-        if cfg!(target_os = "macos") {
-            if let Some(mut expected_base) = dirs::home_dir() {
-                expected_base.push(".config");
-                expected_base.push("cmdy");
-                expected_base.push("commands");
-                assert_eq!(result, expected_base, "Test failed on macOS");
-            } else {
-                assert_eq!(
-                    result,
-                    PathBuf::from("./commands"),
-                    "Test fallback failed on macOS"
-                );
-            }
+        // Logic based on dirs crate and OS specifics
+        let expected_path = if cfg!(target_os = "macos") {
+            dirs::home_dir().map(|mut path| {
+                path.push(".config");
+                path.push("cmdy");
+                path.push("commands");
+                path
+            })
         } else {
-            if let Some(mut expected_base) = dirs::config_dir() {
-                expected_base.push("cmdy");
-                expected_base.push("commands");
-                assert_eq!(result, expected_base, "Test failed on non-macOS");
-            } else {
-                assert_eq!(
-                    result,
-                    PathBuf::from("./commands"),
-                    "Test fallback failed on non-macOS"
-                );
-            }
+            dirs::config_dir().map(|mut path| {
+                path.push("cmdy");
+                path.push("commands");
+                path
+            })
+        };
+
+        match expected_path {
+            Some(expected) => assert_eq!(result, expected),
+            // Test fallback path if home/config dir cannot be determined
+            None => assert_eq!(
+                result,
+                PathBuf::from("./commands"),
+                "Fallback path check failed"
+            ),
         }
         Ok(())
     }
 
     #[test]
-    fn test_load_commands_with_params_success() -> Result<()> {
+    fn test_load_commands_success() -> Result<()> {
         let temp_dir = tempdir()?;
         let dir_path = temp_dir.path();
 
-        let files = [(
-            "greet.toml",
-            r#"
-                description = "Greets someone"
-                command = "echo Hello, {name}! You are {age} years old."
-                [[params]]
-                name = "name"
-                description = "The name to greet"
-                required = true
-                # Removed validation field
-
-                [[params]]
-                name = "age"
-                description = "The person's age"
-                required = false
-                default = "unknown"
-                # Removed validation field
+        let files = [
+            (
+                "greet", // Name only, extension added by helper
+                r#"
+                description = "Greets the world"
+                command = "echo Hello World"
             "#,
-        )];
+            ),
+            (
+                "list",
+                r#"
+                description = "Lists files"
+                command = "ls -l"
+            "#,
+            ),
+        ];
         setup_test_config(dir_path, &files)?;
 
         let commands = load_commands(dir_path)?;
-        assert_eq!(commands.len(), 1);
+        assert_eq!(commands.len(), 2);
         assert!(commands.contains_key("greet"));
-        let cmd_def = commands.get("greet").unwrap();
-        assert_eq!(cmd_def.params.len(), 2);
-        assert_eq!(cmd_def.params[0].name, "name");
-        assert!(cmd_def.params[0].required);
-        assert_eq!(cmd_def.params[1].name, "age");
-        assert!(!cmd_def.params[1].required);
-        assert_eq!(cmd_def.params[1].default, Some("unknown".to_string()));
+        assert!(commands.contains_key("list"));
+
+        let greet_def = commands.get("greet").unwrap();
+        assert_eq!(greet_def.description, "Greets the world");
+        assert_eq!(greet_def.command, "echo Hello World");
+
+        let list_def = commands.get("list").unwrap();
+        assert_eq!(list_def.description, "Lists files");
+        assert_eq!(list_def.command, "ls -l");
 
         Ok(())
     }
@@ -578,12 +405,12 @@ mod tests {
     fn test_load_commands_invalid_toml_syntax() -> Result<()> {
         let temp_dir = tempdir()?;
         let dir_path = temp_dir.path();
-        let files = [("bad_syntax.toml", "description = No quotes\ncommand = foo")];
+        // Pass name and content separately to helper
+        let files = [("bad_syntax", "description = No quotes\ncommand = foo")];
         setup_test_config(dir_path, &files)?;
 
-        // Should print a warning (in debug) but return Ok
+        // Should print a warning (in debug) but return Ok with 0 commands loaded
         let commands = load_commands(dir_path)?;
-        // It should fail parsing and not load the command
         assert!(
             commands.is_empty(),
             "Invalid TOML syntax should prevent loading"
@@ -592,169 +419,33 @@ mod tests {
     }
 
     #[test]
-    fn test_process_args_success_required_and_default() -> Result<()> {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --name={name} --age={age}".into(),
-            params: vec![
-                ParamDef {
-                    name: "name".into(),
-                    description: "".into(),
-                    required: true,
-                    default: None,
-                    allowed_values: vec![],
-                },
-                ParamDef {
-                    name: "age".into(),
-                    description: "".into(),
-                    required: false,
-                    default: Some("30".into()),
-                    allowed_values: vec![],
-                },
-            ],
-        };
-        let args = vec!["Alice".to_string()];
-        let result = process_and_substitute_args(&cmd_def, &args)?;
-        assert_eq!(result, "cmd --name=Alice --age=30");
+    fn test_find_command_definition_success() -> Result<()> {
+        let mut commands = HashMap::new();
+        commands.insert(
+            "hello".to_string(),
+            CommandDef {
+                description: "Says hello".to_string(),
+                command: "echo hello".to_string(),
+            },
+        );
+        let found_def = find_command_definition("hello", &commands)?;
+        assert_eq!(found_def.description, "Says hello");
         Ok(())
     }
 
     #[test]
-    fn test_process_args_success_all_provided() -> Result<()> {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --name={name} --age={age}".into(),
-            params: vec![
-                ParamDef {
-                    name: "name".into(),
-                    description: "".into(),
-                    required: true,
-                    default: None,
-                    allowed_values: vec![],
-                },
-                ParamDef {
-                    name: "age".into(),
-                    description: "".into(),
-                    required: false,
-                    default: Some("30".into()),
-                    allowed_values: vec![],
-                },
-            ],
-        };
-        let args = vec!["Bob".to_string(), "45".to_string()];
-        let result = process_and_substitute_args(&cmd_def, &args)?;
-        assert_eq!(result, "cmd --name=Bob --age=45");
-        Ok(())
-    }
-
-    #[test]
-    fn test_process_args_missing_required() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --name={name}".into(),
-            params: vec![ParamDef {
-                name: "name".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec![],
-            }],
-        };
-        let args = vec![]; // Missing required arg
-        let result = process_and_substitute_args(&cmd_def, &args);
-        assert!(result.is_err()); // Check it's an error first
-        let err_ref = result.as_ref().unwrap_err(); // Borrow the error
-        assert!(err_ref.downcast_ref::<ParamError>().is_some()); // Check it's our specific error type
-        assert!(err_ref.to_string().contains("Too few arguments")); // Check the error message
-    }
-
-    #[test]
-    fn test_process_args_too_many_args() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --name={name}".into(),
-            params: vec![ParamDef {
-                name: "name".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec![],
-            }],
-        };
-        let args = vec!["Alice".to_string(), "extra".to_string()]; // Too many args
-        let result = process_and_substitute_args(&cmd_def, &args);
-        assert!(result.is_err()); // Check it's an error first
-        let err_ref = result.as_ref().unwrap_err(); // Borrow the error
-        assert!(err_ref.downcast_ref::<ParamError>().is_some()); // Check it's our specific error type
-        assert!(err_ref.to_string().contains("Too many arguments")); // Check the error message
-    }
-
-    #[test]
-    fn test_process_args_validation_allowed_values_pass() -> Result<()> {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --mode={mode}".into(),
-            params: vec![ParamDef {
-                name: "mode".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec!["read".into(), "write".into()],
-            }],
-        };
-        let args = vec!["read".to_string()];
-        let result = process_and_substitute_args(&cmd_def, &args)?;
-        assert_eq!(result, "cmd --mode=read");
-        Ok(())
-    }
-
-    #[test]
-    fn test_process_args_validation_allowed_values_fail() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --mode={mode}".into(),
-            params: vec![ParamDef {
-                name: "mode".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec!["read".into(), "write".into()],
-            }],
-        };
-        let args = vec!["delete".to_string()]; // Not allowed
-        let result = process_and_substitute_args(&cmd_def, &args);
+    fn test_find_command_definition_not_found() {
+        let commands: HashMap<String, CommandDef> = HashMap::new();
+        let result = find_command_definition("goodbye", &commands);
         assert!(result.is_err());
-        let err_ref = result.as_ref().unwrap_err(); // Borrow
-        assert!(err_ref.downcast_ref::<ParamError>().is_some());
-        assert!(err_ref
-            .to_string()
-            .contains("Invalid value for parameter 'mode'"));
-        assert!(err_ref.to_string().contains("must be one of"));
-    }
-
-    #[test]
-    fn test_process_args_unmatched_placeholder() {
-        let cmd_def = CommandDef {
-            description: "Test".into(),
-            command: "cmd --name={name} --extra={unprovided}".into(), // {unprovided} won't be filled
-            params: vec![ParamDef {
-                name: "name".into(),
-                description: "".into(),
-                required: true,
-                default: None,
-                allowed_values: vec![],
-            }],
-        };
-        let args = vec!["Alice".to_string()];
-        let result = process_and_substitute_args(&cmd_def, &args);
-        assert!(result.is_err());
-        // This error comes directly from bail!, not ParamError, so no downcast needed.
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("unsubstituted placeholder(s) like '{unprovided}'"));
+            .contains("Command 'goodbye' not found."));
     }
 
-    // Note: execute_command tests are harder without mocking std::process::Command
-    // Focus tests on load_commands and process_and_substitute_args
+    // Tests for process_and_substitute_args and parameter validation REMOVED
+
+    // Note: Testing execute_command directly is complex due to mocking std::process::Command.
+    // Manual testing or integration tests are more practical for verifying execution.
 }
