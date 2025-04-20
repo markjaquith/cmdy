@@ -20,15 +20,15 @@ pub struct CommandDef {
     // No 'params' field anymore
 }
 
-// Defines the command-line arguments your tool accepts (Unchanged)
+// Defines the command-line arguments your tool accepts
 #[derive(Parser, Debug)]
 #[command(name = "cmdy", author, version, about = "Runs predefined commands.", long_about = None)]
 struct CliArgs {
     /// The name of the command command to execute
     command_name: Option<String>, // Make optional to allow listing commands
 
-    /// Optional directory to load command definitions from.
-    /// Defaults to standard config locations based on OS.
+    /// Optional directory to load command definitions from
+    /// Defaults to standard config locations based on OS
     #[arg(long, value_name = "DIRECTORY")]
     dir: Option<PathBuf>,
 
@@ -67,22 +67,15 @@ fn main() -> Result<()> {
 
 // --- Helper Functions ---
 
-/// Prints the application banner and information. (Unchanged)
+/// Prints the application banner and information
 fn print_banner() {
-    println!(r#" ██████ ███    ███ ██████  ██    ██ "#);
-    println!(r#"██      ████  ████ ██   ██ ██  ██  "#);
-    println!(r#"██      ██ ████ ██ ██   ██  ████   "#);
-    println!(r#"██      ██  ██  ██ ██   ██   ██    "#);
-    println!(r#" ██████ ██      ██ ██████    ██    "#);
-    println!();
-    println!("Your friendly command manager");
-    println!();
+    println!("Cmdy");
     println!("(it’s pronounced “commandy”)");
     println!();
-    println!("(C) 2022-2025 Mark Jaquith"); // Assuming current date is 2025 based on context prompt
+    println!("(C) 2022-2025 Mark Jaquith");
 }
 
-/// Determines the directory to load command definitions from. (Unchanged)
+/// Determines the directory to load command definitions from
 fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf> {
     if let Some(dir) = cli_dir_flag {
         Ok(dir.clone())
@@ -115,7 +108,7 @@ fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf>
 
 // --- Core Functions ---
 
-/// Loads all `.toml` files from the specified directory into a HashMap. (Logic Unchanged, uses simpler CommandDef)
+/// Loads all `.toml` files from the specified directory into a HashMap
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
 
@@ -138,7 +131,6 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                 canonical_dir_display.display()
             );
         }
-        // It's not an error if the default dir doesn't exist, just return empty.
         return Ok(commands);
     }
 
@@ -162,24 +154,21 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                 .with_context(|| format!("Failed to read command file: {}", path.display()))?;
 
             match toml::from_str::<CommandDef>(&content) {
-                // Parses the simplified CommandDef
                 Ok(cmd_def) => {
                     #[cfg(debug_assertions)]
                     println!(
                         "  Loaded definition for '{}' from {:?}",
                         name,
-                        path.file_name().unwrap_or_default() // Use default OsStr if no filename
+                        path.file_name().unwrap_or_default()
                     );
                     commands.insert(name, cmd_def);
                 }
                 Err(e) => {
-                    // Warning remains useful if TOML is malformed or has unexpected fields (like old 'params')
                     eprintln!(
                         "Warning: Failed to parse TOML from file: {}. Error: {}",
                         path.display(),
                         e
                     );
-                    // Continue loading other files even if one fails to parse
                 }
             }
         }
@@ -187,7 +176,7 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     Ok(commands)
 }
 
-/// Finds the command definition struct for a given command name. (Unchanged)
+/// Finds the command definition struct for a given command name
 pub fn find_command_definition<'a>(
     name: &str,
     commands: &'a HashMap<String, CommandDef>,
@@ -197,12 +186,8 @@ pub fn find_command_definition<'a>(
         .ok_or_else(|| anyhow!("Command '{}' not found.", name))
 }
 
-/// Executes the specified command, appending any provided arguments safely quoted.
-pub fn execute_command(
-    name: &str,
-    cmd_def: &CommandDef,
-    cmd_args: &[String], // Raw arguments from the user
-) -> Result<()> {
+/// Executes the specified command, appending any provided arguments safely quoted
+pub fn execute_command(name: &str, cmd_def: &CommandDef, cmd_args: &[String]) -> Result<()> {
     #[cfg(debug_assertions)]
     println!("Executing '{}': {}", name, cmd_def.description);
 
@@ -214,8 +199,8 @@ pub fn execute_command(
         command_to_run.push(' '); // Add a space separator
 
         if cfg!(target_os = "windows") {
-            // Basic quoting for cmd.exe: wrap in double quotes if it contains spaces or is empty.
-            // Note: This is a heuristic and might not cover all edge cases for cmd.exe's complex parsing.
+            // Basic quoting for cmd.exe: wrap in double quotes if it contains spaces or is empty
+            // Note: This is a heuristic and might not cover all edge cases for cmd.exe's complex parsing
             if arg.is_empty() || arg.contains(char::is_whitespace) || arg.contains('"') {
                 // Added check for quotes
                 command_to_run.push('"');
@@ -227,9 +212,9 @@ pub fn execute_command(
             }
         } else {
             // --- LLM CHANGE START ---
-            // Use shell_escape::escape for robust Bourne shell (sh, bash, zsh) escaping.
-            // It returns a Cow<str>, which dereferences to &str.
-            // .into() converts the &String to the Cow<str> expected by escape.
+            // Use shell_escape::escape for robust Bourne shell (sh, bash, zsh) escaping
+            // It returns a Cow<str>, which dereferences to &str
+            // .into() converts the &String to the Cow<str> expected by escape
             let escaped_arg = escape(arg.into());
             command_to_run.push_str(&escaped_arg);
             // --- LLM CHANGE END ---
@@ -446,6 +431,6 @@ mod tests {
 
     // Tests for process_and_substitute_args and parameter validation REMOVED
 
-    // Note: Testing execute_command directly is complex due to mocking std::process::Command.
-    // Manual testing or integration tests are more practical for verifying execution.
+    // Note: Testing execute_command directly is complex due to mocking std::process::Command
+    // Manual testing or integration tests are more practical for verifying execution
 }
