@@ -60,6 +60,9 @@ struct CliArgs {
     /// These are passed directly to the executed command.
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     command_args: Vec<String>,
+    /// Filter to only show commands tagged with this value. May be used multiple times.
+    #[arg(short = 't', long = "tag", value_name = "TAG")]
+    tags: Vec<String>,
 }
 
 // --- Main Logic ---
@@ -84,8 +87,18 @@ fn main() -> Result<()> {
     // Sort the commands alphabetically by name for a consistent numbered list.
     commands_vec.sort_by(|a, b| a.description.cmp(&b.description));
 
-    // Display the list, prompt the user for selection, and execute the chosen command.
-    // Pass the command-line arguments (`cli_args.command_args`) to be appended.
+    // If tag filters were provided, retain only matching commands.
+    if !cli_args.tags.is_empty() {
+        let filter_tags = &cli_args.tags;
+        commands_vec.retain(|cmd| {
+            cmd.tags.iter().any(|tag| filter_tags.contains(tag))
+        });
+        if commands_vec.is_empty() {
+            eprintln!("No command snippets found matching tag(s): {:?}", filter_tags);
+            return Ok(());
+        }
+    }
+    // Display the list (via fzf), prompt for selection, and execute the chosen command.
     select_and_execute_command(&commands_vec, &cli_args.command_args, &config_dir)
         .context("Failed during command selection or execution")?;
 
