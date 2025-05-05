@@ -17,8 +17,8 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
-            // Include --ansi to allow ANSI color codes in the filter UI
-            filter_command: "fzf --ansi".to_string(),
+            // Default fzf options: ANSI support, reverse layout, rounded border, 50% height
+            filter_command: "fzf --ansi --layout=reverse --border=rounded --height=50%".to_string(),
             directories: Vec::new(),
         }
     }
