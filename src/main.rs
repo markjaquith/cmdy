@@ -89,7 +89,7 @@ pub struct CommandSnippet {
 #[serde(deny_unknown_fields)] // Error if unknown fields are in TOML
 struct FileDef {
     /// A list of command snippets defined in this file.
-    snippets: Vec<CommandSnippet>,
+    commands: Vec<CommandSnippet>,
 }
 
 /// Represents the fully loaded command definition, including its source.
@@ -278,7 +278,7 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
             match toml::from_str::<FileDef>(&file_content) {
                 Ok(file_def) => {
                     // Successfully parsed the file, now process each snippet within it.
-                    for snippet in file_def.snippets {
+                    for snippet in file_def.commands {
                         let snippet_name = snippet.description;
 
                         // Check for duplicate snippet names across all loaded files.
@@ -338,11 +338,11 @@ fn select_and_execute_command(
     if commands_vec.is_empty() {
         println!("No command snippets defined.");
         println!(
-            "Looked for *.toml files containing [[snippets]] in: {}",
+            "Looked for *.toml files containing [[commands]] in: {}",
             config_dir.display()
         );
         println!("Create .toml files in this directory to define commands, for example:");
-        println!("\n[[snippets]]"); // Use [[snippets]] to indicate array of tables
+        println!("\n[[commands]]"); // Use [[commands]] to indicate array of tables
         println!("name = \"your-command-name\"");
         println!("description = \"Your command description\"");
         println!("command = \"your command string\"");
@@ -580,16 +580,16 @@ mod tests {
 
         // Define content for two separate TOML files.
         let file1_content = r#"
-            [[snippets]]
+            [[commands]]
             description = "Greets the world"
             command = "echo Hello World"
             tags = ["foo", "bar"]
-            [[snippets]]
+            [[commands]]
             description = "Lists files"
             command = "ls -l"
         "#;
         let file2_content = r#"
-            [[snippets]]
+            [[commands]]
             description = "Shows the current date"
             command = "date"
         "#;
@@ -631,7 +631,7 @@ mod tests {
         let dir_path = temp_dir.path();
         let invalid_content = "description = No quotes\ncommand = foo"; // Missing [[snippets]] etc.
         let valid_content = r#"
-            [[snippets]]
+            [[commands]]
             description = "This one is okay"
             command = "echo ok"
         "#;
