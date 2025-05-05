@@ -17,7 +17,6 @@ pub fn select_and_execute_command(
     config_dir: &Path,
     filter_cmd: &str,
 ) -> Result<()> {
-    // No commands case
     if commands_vec.is_empty() {
         println!("No command snippets defined.");
         println!(

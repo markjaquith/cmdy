@@ -27,7 +27,6 @@ impl Default for AppConfig {
 /// Loads the application configuration from a TOML file.
 /// Checks ~/.config/cmdy/cmdy.toml (macOS) or $XDG_CONFIG_HOME/cmdy/cmdy.toml, falling back to defaults.
 pub fn load_app_config() -> Result<AppConfig> {
-    // Determine config file path
     let config_path = {
         #[cfg(target_os = "macos")]
         let base = dirs::home_dir()
