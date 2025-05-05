@@ -21,6 +21,8 @@ use toml;
 struct AppConfig {
     /// Command used for interactive filtering (e.g., fzf, gum choose, etc.).
     pub filter_command: String,
+    /// Additional directories to scan (non-recursively) for TOML snippet files.
+    pub directories: Vec<PathBuf>,
 }
 
 impl Default for AppConfig {
@@ -28,6 +30,7 @@ impl Default for AppConfig {
         AppConfig {
             // Include --ansi to allow display of ANSI color codes in the filter UI
             filter_command: "fzf --ansi".to_string(),
+            directories: Vec::new(),
         }
     }
 }
@@ -36,13 +39,15 @@ impl Default for AppConfig {
 /// Checks $XDG_CONFIG_HOME/cmdy/cmdy.toml or ~/.config/cmdy/cmdy.toml,
 /// falling back to ./cmdy.toml or defaults if not found.
 fn load_app_config() -> Result<AppConfig> {
-    // Determine config file path
-    let config_path = if let Some(mut cfg_dir) = dirs::config_dir() {
-        cfg_dir.push("cmdy");
-        cfg_dir.push("cmdy.toml");
-        cfg_dir
-    } else {
-        PathBuf::from("cmdy.toml")
+    // Determine config file path (use ~/.config on macOS, XDG config dir elsewhere)
+    let config_path = {
+        #[cfg(target_os = "macos")]
+        let base = dirs::home_dir()
+            .map(|p| p.join(".config"))
+            .unwrap_or_else(|| PathBuf::from("."));
+        #[cfg(not(target_os = "macos"))]
+        let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        base.join("cmdy").join("cmdy.toml")
     };
     // Read if exists
     if config_path.is_file() {
@@ -132,9 +137,28 @@ fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     println!("Using configuration directory: {:?}", config_dir);
 
-    // Load commands from TOML files into a temporary HashMap for duplicate checking
-    let commands_map = load_commands(&config_dir)
+    // Load commands from the primary directory into a map for duplicate checking
+    let mut commands_map = load_commands(&config_dir)
         .with_context(|| format!("Failed to load command definitions from {:?}", config_dir))?;
+    // Load additional directories from config, if any
+    for extra_dir in &app_config.directories {
+        if extra_dir.is_dir() {
+            let extra_map = load_commands(extra_dir)
+                .with_context(|| format!("Failed to load command definitions from {:?}", extra_dir))?;
+            for (name, cmd_def) in extra_map {
+                if commands_map.contains_key(&name) {
+                    let existing = &commands_map[&name];
+                    bail!(
+                        "Duplicate command snippet name '{}' found.\n  Defined in: {}\n  Also defined in: {}",
+                        name,
+                        cmd_def.source_file.display(),
+                        existing.source_file.display()
+                    );
+                }
+                commands_map.insert(name, cmd_def);
+            }
+        }
+    }
 
     // Convert the HashMap into a Vec<CommandDef> for ordered display and selection.
     let mut commands_vec: Vec<CommandDef> = commands_map.into_values().collect();
