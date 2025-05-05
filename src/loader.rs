@@ -1,10 +1,6 @@
+use crate::types::{CommandDef, FileDef};
 use anyhow::{bail, Context, Result};
-use crate::types::{FileDef, CommandDef};
-use std::{
-    collections::HashMap,
-    fs,
-    path::Path,
-};
+use std::{collections::HashMap, fs, path::Path};
 use toml;
 
 /// Loads all command snippets from `.toml` files in the specified directory.
@@ -17,7 +13,9 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
         return Ok(commands);
     }
 
-    for entry in fs::read_dir(dir).with_context(|| format!("Failed to read directory: {}", dir.display()))? {
+    for entry in
+        fs::read_dir(dir).with_context(|| format!("Failed to read directory: {}", dir.display()))?
+    {
         let entry = entry.context("Failed to read directory entry")?;
         let path = entry.path();
         if path.is_file() && path.extension().map_or(false, |ext| ext == "toml") {
@@ -46,7 +44,11 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to parse TOML from file: {}. Error: {}", path.display(), e);
+                    eprintln!(
+                        "Warning: Failed to parse TOML from file: {}. Error: {}",
+                        path.display(),
+                        e
+                    );
                 }
             }
         }
@@ -118,7 +120,7 @@ command = "echo C"
             r#"[[commands]]
 description = "OK"
 command = "echo ok"
-"#, 
+"#,
         );
         setup_test_config(&dir, &[invalid, valid])?;
         let commands = load_commands(&dir)?;

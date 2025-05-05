@@ -1,18 +1,18 @@
-mod types;
 mod config;
-mod loader;
-mod ui;
 mod executor;
+mod loader;
+mod types;
+mod ui;
 
 use anyhow::{bail, Context, Result};
+use arboard::Clipboard;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use arboard::Clipboard;
 
-use config::{load_app_config, determine_config_directory};
+use config::{determine_config_directory, load_app_config};
 use loader::load_commands;
-use ui::{choose_command, select_and_execute_command};
 use types::CommandDef;
+use ui::{choose_command, select_and_execute_command};
 
 /// Top-level CLI options and subcommand
 #[derive(Parser, Debug)]
@@ -29,7 +29,6 @@ struct CliArgs {
     /// Defaults to standard config locations based on OS.
     #[arg(long, value_name = "DIRECTORY")]
     dir: Option<PathBuf>,
-
 
     /// Filter to only show commands tagged with this value. May be used multiple times.
     #[arg(short = 't', long = "tag", value_name = "TAG")]
@@ -65,8 +64,9 @@ fn main() -> Result<()> {
     // Load additional directories from config
     for extra_dir in &app_config.directories {
         if extra_dir.is_dir() {
-            let extra_map = load_commands(extra_dir)
-                .with_context(|| format!("Failed to load command definitions from {:?}", extra_dir))?;
+            let extra_map = load_commands(extra_dir).with_context(|| {
+                format!("Failed to load command definitions from {:?}", extra_dir)
+            })?;
             for (name, cmd_def) in extra_map {
                 if commands_map.contains_key(&name) {
                     let existing = &commands_map[&name];
@@ -91,7 +91,10 @@ fn main() -> Result<()> {
         let filter_tags = &cli_args.tags;
         commands_vec.retain(|cmd| cmd.tags.iter().any(|tag| filter_tags.contains(tag)));
         if commands_vec.is_empty() {
-            eprintln!("No command snippets found matching tag(s): {:?}", filter_tags);
+            eprintln!(
+                "No command snippets found matching tag(s): {:?}",
+                filter_tags
+            );
             return Ok(());
         }
     }
