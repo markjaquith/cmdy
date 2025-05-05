@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 use dirs;
 use serde::Deserialize;
+use toml;
 use shell_escape::escape;
 use std::{
     collections::HashMap,
@@ -10,6 +11,56 @@ use std::{
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, Stdio}, // Alias Command, Added Stdio
 };
+
+// --- Application Configuration ---
+
+/// Represents global application settings loaded from cmdy.toml.
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct AppConfig {
+    /// Command used for interactive filtering (e.g., fzf, gum choose, etc.).
+    pub filter_command: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig {
+            filter_command: "fzf".to_string(),
+        }
+    }
+}
+
+/// Loads the application configuration from a TOML file.
+/// Checks $XDG_CONFIG_HOME/cmdy/cmdy.toml or ~/.config/cmdy/cmdy.toml,
+/// falling back to ./cmdy.toml or defaults if not found.
+fn load_app_config() -> Result<AppConfig> {
+    // Determine config file path
+    let config_path = if let Some(mut cfg_dir) = dirs::config_dir() {
+        cfg_dir.push("cmdy");
+        cfg_dir.push("cmdy.toml");
+        cfg_dir
+    } else {
+        PathBuf::from("cmdy.toml")
+    };
+    // Read if exists
+    if config_path.is_file() {
+        let content = fs::read_to_string(&config_path)
+            .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
+        match toml::from_str::<AppConfig>(&content) {
+            Ok(cfg) => Ok(cfg),
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to parse config file {}: {}. Using defaults.",
+                    config_path.display(),
+                    e
+                );
+                Ok(AppConfig::default())
+            }
+        }
+    } else {
+        Ok(AppConfig::default())
+    }
+}
 
 // --- Structs ---
 
@@ -68,8 +119,10 @@ struct CliArgs {
 // --- Main Logic ---
 
 fn main() -> Result<()> {
-    // Parse command-line arguments (primarily for --dir and trailing args)
+    // Parse command-line arguments (primarily for --dir, tags, and trailing args)
     let cli_args = CliArgs::parse();
+    // Load global application configuration (e.g., filter_command)
+    let app_config = load_app_config().context("Failed to load application configuration")?;
 
     // Determine the configuration directory to use
     let config_dir = determine_config_directory(&cli_args.dir)?;
@@ -99,8 +152,13 @@ fn main() -> Result<()> {
         }
     }
     // Display the list (via fzf), prompt for selection, and execute the chosen command.
-    select_and_execute_command(&commands_vec, &cli_args.command_args, &config_dir)
-        .context("Failed during command selection or execution")?;
+    select_and_execute_command(
+        &commands_vec,
+        &cli_args.command_args,
+        &config_dir,
+        &app_config.filter_command,
+    )
+    .context("Failed during command selection or execution")?;
 
     Ok(())
 }
@@ -241,12 +299,13 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     Ok(commands) // Return the map of loaded commands
 }
 
-/// Displays a numbered list of commands, prompts the user for selection,
-/// reads the input, and executes the chosen command with provided arguments.
+/// Uses an external filter command to select from available snippets,
+/// then executes the chosen command with provided arguments.
 fn select_and_execute_command(
     commands_vec: &[CommandDef], // Takes a slice of the sorted CommandDefs
     cmd_args: &[String],         // Arguments from CLI to pass to the executed command
     config_dir: &Path,           // Directory where commands were loaded from (for display)
+    filter_cmd: &str,            // External filter program (e.g., fzf, gum choose)
 ) -> Result<()> {
     // Handle the case where no commands were loaded.
     if commands_vec.is_empty() {
@@ -263,7 +322,7 @@ fn select_and_execute_command(
         return Ok(()); // Nothing to execute
     }
 
-    // Use fzf for interactive command selection.
+    // Use external filter for interactive command selection.
     let mut choice_map: HashMap<String, &CommandDef> = HashMap::new();
     for cmd_def in commands_vec.iter() {
         let filename = cmd_def
@@ -275,17 +334,23 @@ fn select_and_execute_command(
         choice_map.insert(line.clone(), cmd_def);
     }
 
-    let mut fzf_child = ProcessCommand::new("fzf")
+    // Spawn the filter command (e.g., fzf, gum choose) as configured
+    let mut parts = filter_cmd.split_whitespace();
+    let filter_prog = parts.next().unwrap();
+    let filter_args: Vec<&str> = parts.collect();
+    let mut filter_child = ProcessCommand::new(filter_prog);
+    filter_child.args(&filter_args);
+    let mut filter_child = filter_child
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .context("Failed to spawn fzf for command selection")?;
+        .with_context(|| format!("Failed to spawn filter command '{}'", filter_cmd))?;
 
     {
-        let mut stdin = fzf_child
+        let mut stdin = filter_child
             .stdin
             .take()
-            .context("Failed to open fzf stdin")?;
+            .context("Failed to open filter stdin")?;
         for choice in choice_map.keys() {
             writeln!(stdin, "{}", choice).context("Failed to write to fzf stdin")?;
         }
@@ -293,18 +358,18 @@ fn select_and_execute_command(
 
     let mut selected = String::new();
     {
-        let mut stdout = fzf_child
+        let mut stdout = filter_child
             .stdout
             .take()
-            .context("Failed to open fzf stdout")?;
+            .context("Failed to open filter stdout")?;
         stdout
             .read_to_string(&mut selected)
             .context("Failed to read fzf output")?;
     }
 
-    let status = fzf_child
+    let status = filter_child
         .wait()
-        .context("Failed to wait for fzf process")?;
+        .context("Failed to wait for filter process")?;
     if !status.success() {
         println!("No selection made. Exiting.");
         return Ok(());
