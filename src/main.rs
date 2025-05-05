@@ -21,6 +21,9 @@ pub struct CommandSnippet {
     pub description: String,
     /// The actual shell command string to execute.
     pub command: String,
+    /// Optional tags for the command snippet (e.g., categories or keywords).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Represents the structure of a TOML file containing one or more command snippets.
@@ -40,6 +43,8 @@ pub struct CommandDef {
     pub command: String,
     /// The path to the TOML file where this command was defined.
     pub source_file: PathBuf,
+    /// Optional tags associated with this command snippet.
+    pub tags: Vec<String>,
 }
 
 /// Defines the command-line arguments your tool accepts.
@@ -199,10 +204,10 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
 
                             // Create the CommandDef, storing the necessary info including the name.
                             let cmd_def = CommandDef {
-                                // FIX THIS
                                 description: snippet_name.clone(),
                                 command: snippet.command,
                                 source_file: path.clone(), // Store the path of the source file
+                                tags: snippet.tags,       // Tags from the TOML (empty if none)
                             };
                             commands.insert(snippet_name, cmd_def);
                         }
@@ -458,6 +463,7 @@ mod tests {
             [[snippets]]
             description = "Greets the world"
             command = "echo Hello World"
+            tags = ["foo", "bar"]
             [[snippets]]
             description = "Lists files"
             command = "ls -l"
