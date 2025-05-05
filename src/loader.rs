@@ -12,8 +12,8 @@ use toml;
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
 
-    // If the directory doesn't exist, return empty map (not an error)
     if !dir.is_dir() {
+        // No commands to load if directory doesn't exist
         return Ok(commands);
     }
 
@@ -54,7 +54,6 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     Ok(commands)
 }
 
-// --- Tests for loader ---
 #[cfg(test)]
 mod tests {
     use super::*;

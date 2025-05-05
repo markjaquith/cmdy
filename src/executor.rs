@@ -33,7 +33,6 @@ pub fn execute_command(cmd_def: &CommandDef, cmd_args: &[String]) -> Result<()> 
     #[cfg(debug_assertions)]
     println!("  Final Command String: {}", command_to_run);
 
-    // Prepare the process
     let mut cmd_process = if cfg!(target_os = "windows") {
         let mut cmd = ProcessCommand::new("cmd");
         cmd.args(["/C", &command_to_run]);
