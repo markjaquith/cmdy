@@ -1,10 +1,9 @@
 use anyhow::{bail, Context, Result};
-use shell_escape::escape;
 use std::process::{Command as ProcessCommand, Stdio};
 use crate::types::CommandDef;
 
 /// Executes the specified command snippet, appending any provided arguments safely quoted.
-pub fn execute_command(cmd_def: &CommandDef, cmd_args: &[String]) -> Result<()> {
+pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {
     #[cfg(debug_assertions)]
     println!(
         "Executing '{}' (from {})",
@@ -12,23 +11,8 @@ pub fn execute_command(cmd_def: &CommandDef, cmd_args: &[String]) -> Result<()> 
         cmd_def.source_file.display()
     );
 
-    // Build the command string
-    let mut command_to_run = cmd_def.command.clone();
-    for arg in cmd_args {
-        command_to_run.push(' ');
-        if cfg!(target_os = "windows") {
-            if arg.is_empty() || arg.contains(char::is_whitespace) || arg.contains('"') {
-                command_to_run.push('"');
-                command_to_run.push_str(&arg.replace('"', "\"\""));
-                command_to_run.push('"');
-            } else {
-                command_to_run.push_str(arg);
-            }
-        } else {
-            let escaped_arg = escape(arg.into());
-            command_to_run.push_str(&escaped_arg);
-        }
-    }
+    // Use the base command defined in the snippet
+    let command_to_run = cmd_def.command.clone();
 
     #[cfg(debug_assertions)]
     println!("  Final Command String: {}", command_to_run);
@@ -44,7 +28,7 @@ pub fn execute_command(cmd_def: &CommandDef, cmd_args: &[String]) -> Result<()> 
         cmd
     };
 
-    // Execute, inheriting IO
+    // Execute, inheriting IO streams
     let status = cmd_process
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
