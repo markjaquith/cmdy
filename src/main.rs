@@ -2,7 +2,6 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 use dirs;
 use serde::Deserialize;
-use toml;
 use shell_escape::escape;
 use std::{
     collections::HashMap,
@@ -11,6 +10,8 @@ use std::{
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, Stdio}, // Alias Command, Added Stdio
 };
+use regex::Regex;
+use toml;
 
 // --- Application Configuration ---
 
@@ -25,7 +26,8 @@ struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
-            filter_command: "fzf".to_string(),
+            // Include --ansi to allow display of ANSI color codes in the filter UI
+            filter_command: "fzf --ansi".to_string(),
         }
     }
 }
@@ -143,11 +145,12 @@ fn main() -> Result<()> {
     // If tag filters were provided, retain only matching commands.
     if !cli_args.tags.is_empty() {
         let filter_tags = &cli_args.tags;
-        commands_vec.retain(|cmd| {
-            cmd.tags.iter().any(|tag| filter_tags.contains(tag))
-        });
+        commands_vec.retain(|cmd| cmd.tags.iter().any(|tag| filter_tags.contains(tag)));
         if commands_vec.is_empty() {
-            eprintln!("No command snippets found matching tag(s): {:?}", filter_tags);
+            eprintln!(
+                "No command snippets found matching tag(s): {:?}",
+                filter_tags
+            );
             return Ok(());
         }
     }
@@ -278,7 +281,7 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
                                 description: snippet_name.clone(),
                                 command: snippet.command,
                                 source_file: path.clone(), // Store the path of the source file
-                                tags: snippet.tags,       // Tags from the TOML (empty if none)
+                                tags: snippet.tags,        // Tags from the TOML (empty if none)
                             };
                             commands.insert(snippet_name, cmd_def);
                         }
@@ -322,16 +325,24 @@ fn select_and_execute_command(
         return Ok(()); // Nothing to execute
     }
 
-    // Use external filter for interactive command selection.
+    // Prepare raw and colored lines for interactive filtering.
     let mut choice_map: HashMap<String, &CommandDef> = HashMap::new();
+    // ANSI color for filename bracketed section
+    let prefix = "\x1b[33m"; // yellow
+    let suffix = "\x1b[0m";
+    let mut colored_lines = Vec::new();
     for cmd_def in commands_vec.iter() {
         let filename = cmd_def
             .source_file
             .file_name()
             .map(|f| f.to_string_lossy())
             .unwrap_or_else(|| "<unknown>".into());
-        let line = format!("{} (from {})", cmd_def.description, filename);
-        choice_map.insert(line.clone(), cmd_def);
+        // Raw key: description [filename]
+        let raw_line = format!("{} [{}]", cmd_def.description, filename);
+        // Colored display: description <color>[filename]<reset>
+        let colored_line = format!("{} {}[{}]{}", cmd_def.description, prefix, filename, suffix);
+        choice_map.insert(raw_line.clone(), cmd_def);
+        colored_lines.push(colored_line);
     }
 
     // Spawn the filter command (e.g., fzf, gum choose) as configured
@@ -351,8 +362,8 @@ fn select_and_execute_command(
             .stdin
             .take()
             .context("Failed to open filter stdin")?;
-        for choice in choice_map.keys() {
-            writeln!(stdin, "{}", choice).context("Failed to write to fzf stdin")?;
+        for line in &colored_lines {
+            writeln!(stdin, "{}", line).context("Failed to write to filter stdin")?;
         }
     }
 
@@ -375,13 +386,20 @@ fn select_and_execute_command(
         return Ok(());
     }
 
+    // Remove ANSI escapes from the selected line to recover the raw key
     let selected = selected.trim();
+    // Regex matches ANSI escape sequences like ESC[...m
+    let re = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+    let key = re.replace_all(selected, "").to_string();
     let selected_cmd_def = choice_map
-        .get(selected)
-        .with_context(|| format!("Selected command '{}' not found", selected))?;
+        .get(&key)
+        .with_context(|| format!("Selected command '{}' not found", key))?;
 
     return execute_command(selected_cmd_def, cmd_args).with_context(|| {
-        format!("Failed to execute command snippet '{}'", selected_cmd_def.description)
+        format!(
+            "Failed to execute command snippet '{}'",
+            selected_cmd_def.description
+        )
     });
 }
 
