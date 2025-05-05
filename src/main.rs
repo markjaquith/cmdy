@@ -5,17 +5,24 @@ mod ui;
 mod executor;
 
 use anyhow::{bail, Context, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use config::{load_app_config, determine_config_directory};
 use loader::load_commands;
-use ui::select_and_execute_command;
+use ui::{choose_command, select_and_execute_command};
 use types::CommandDef;
 
-/// Defines the command-line arguments accepted by cmdy.
+/// Top-level CLI options and subcommand
 #[derive(Parser, Debug)]
-#[command(name = "cmdy", author, version, about = "Lists and runs predefined command snippets.", long_about = None)]
+#[command(
+    name = "cmdy",
+    author,
+    version,
+    about = "Lists and runs predefined command snippets.",
+    long_about = None,
+    subcommand_required = false,
+)]
 struct CliArgs {
     /// Optional directory to load command definitions from.
     /// Defaults to standard config locations based on OS.
@@ -26,6 +33,16 @@ struct CliArgs {
     /// Filter to only show commands tagged with this value. May be used multiple times.
     #[arg(short = 't', long = "tag", value_name = "TAG")]
     tags: Vec<String>,
+    /// Subcommand to run (default: run the selected snippet)
+    #[command(subcommand)]
+    action: Option<Action>,
+}
+
+/// Subcommands supported by cmdy
+#[derive(Subcommand, Debug)]
+enum Action {
+    /// Open the selected snippet in your $EDITOR
+    Edit,
 }
 
 fn main() -> Result<()> {
@@ -76,13 +93,20 @@ fn main() -> Result<()> {
         }
     }
 
-    // Launch selection UI and execute the chosen command
-    select_and_execute_command(
-        &commands_vec,
-        &config_dir,
-        &app_config.filter_command,
-    )
-    .context("Failed during command selection or execution")?;
+    // Dispatch based on subcommand
+    if let Some(Action::Edit) = cli_args.action {
+        // Choose snippet then open file in editor
+        let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
+        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+        std::process::Command::new(editor)
+            .arg(&cmd_def.source_file)
+            .status()
+            .context("Failed to launch editor")?;
+        return Ok(());
+    }
+    // Default: run selected snippet
+    select_and_execute_command(&commands_vec, &config_dir, &app_config.filter_command)
+        .context("Failed during command selection or execution")?;
 
     Ok(())
 }
