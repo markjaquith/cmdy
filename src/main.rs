@@ -7,6 +7,7 @@ mod executor;
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use arboard::Clipboard;
 
 use config::{load_app_config, determine_config_directory};
 use loader::load_commands;
@@ -43,6 +44,8 @@ struct CliArgs {
 enum Action {
     /// Open the selected snippet in your $EDITOR
     Edit,
+    /// Copy the selected snippet's command to the clipboard
+    Clip,
 }
 
 fn main() -> Result<()> {
@@ -94,15 +97,28 @@ fn main() -> Result<()> {
     }
 
     // Dispatch based on subcommand
-    if let Some(Action::Edit) = cli_args.action {
-        // Choose snippet then open file in editor
-        let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
-        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
-        std::process::Command::new(editor)
-            .arg(&cmd_def.source_file)
-            .status()
-            .context("Failed to launch editor")?;
-        return Ok(());
+    match cli_args.action {
+        Some(Action::Edit) => {
+            // Open selected snippet in editor
+            let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
+            let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+            std::process::Command::new(editor)
+                .arg(&cmd_def.source_file)
+                .status()
+                .context("Failed to launch editor")?;
+            return Ok(());
+        }
+        Some(Action::Clip) => {
+            // Copy selected snippet's command to clipboard
+            let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
+            let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
+            clipboard
+                .set_text(cmd_def.command.clone())
+                .context("Failed to copy to clipboard")?;
+            println!("Copied '{}' to clipboard", cmd_def.description);
+            return Ok(());
+        }
+        None => {}
     }
     // Default: run selected snippet
     select_and_execute_command(&commands_vec, &config_dir, &app_config.filter_command)
