@@ -22,10 +22,6 @@ struct CliArgs {
     #[arg(long, value_name = "DIRECTORY")]
     dir: Option<PathBuf>,
 
-    /// Arguments to append to the selected command snippet's command string.
-    /// These are passed directly to the executed command.
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    command_args: Vec<String>,
 
     /// Filter to only show commands tagged with this value. May be used multiple times.
     #[arg(short = 't', long = "tag", value_name = "TAG")]
@@ -83,7 +79,6 @@ fn main() -> Result<()> {
     // Launch selection UI and execute the chosen command
     select_and_execute_command(
         &commands_vec,
-        &cli_args.command_args,
         &config_dir,
         &app_config.filter_command,
     )

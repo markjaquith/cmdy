@@ -13,7 +13,6 @@ use crate::executor::execute_command;
 /// then executes the chosen command with provided arguments.
 pub fn select_and_execute_command(
     commands_vec: &[CommandDef],
-    cmd_args: &[String],
     config_dir: &Path,
     filter_cmd: &str,
 ) -> Result<()> {
@@ -94,7 +93,7 @@ pub fn select_and_execute_command(
         .get(&key)
         .with_context(|| format!("Selected command '{}' not found", key))?;
 
-    execute_command(cmd_def, cmd_args).with_context(|| {
+    execute_command(cmd_def).with_context(|| {
         format!("Failed to execute command snippet '{}'", cmd_def.description)
     })
 }
