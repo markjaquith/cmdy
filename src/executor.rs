@@ -1,6 +1,6 @@
+use crate::types::CommandDef;
 use anyhow::{bail, Context, Result};
 use std::process::{Command as ProcessCommand, Stdio};
-use crate::types::CommandDef;
 
 /// Executes the specified command snippet, appending any provided arguments safely quoted.
 pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {

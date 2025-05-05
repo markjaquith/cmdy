@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
+use dirs;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 use toml;
-use dirs;
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
@@ -101,9 +101,22 @@ mod tests {
         let cli_dir = None;
         let result = determine_config_directory(&cli_dir)?;
         let expected = if cfg!(target_os = "macos") {
-            dirs::home_dir().map(|mut path| { path.push(".config"); path.push("cmdy"); path.push("commands"); path }).unwrap()
+            dirs::home_dir()
+                .map(|mut path| {
+                    path.push(".config");
+                    path.push("cmdy");
+                    path.push("commands");
+                    path
+                })
+                .unwrap()
         } else {
-            dirs::config_dir().map(|mut path| { path.push("cmdy"); path.push("commands"); path }).unwrap()
+            dirs::config_dir()
+                .map(|mut path| {
+                    path.push("cmdy");
+                    path.push("commands");
+                    path
+                })
+                .unwrap()
         };
         assert_eq!(result, expected);
         Ok(())
