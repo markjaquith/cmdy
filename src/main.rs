@@ -6,7 +6,7 @@ use shell_escape::escape;
 use std::{
     collections::HashMap,
     fs,
-    io::{self, Write}, // Added io for user input
+    io::{Read, Write}, // For reading fzf output and writing to fzf stdin
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, Stdio}, // Alias Command, Added Stdio
 };
@@ -245,88 +245,61 @@ fn select_and_execute_command(
         return Ok(()); // Nothing to execute
     }
 
-    // Print header for the command list.
-    println!(
-        "Available command snippets (from {}):",
-        config_dir.display()
-    );
-
-    // Find the longest command name for alignment purposes.
-    let max_name_len = commands_vec
-        .iter()
-        .map(|cmd| cmd.description.len())
-        .max()
-        .unwrap_or(0);
-
-    // Print the numbered list of commands.
-    for (index, cmd_def) in commands_vec.iter().enumerate() {
-        // Get the filename for display
+    // Use fzf for interactive command selection.
+    let mut choice_map: HashMap<String, &CommandDef> = HashMap::new();
+    for cmd_def in commands_vec.iter() {
         let filename = cmd_def
             .source_file
             .file_name()
             .map(|f| f.to_string_lossy())
             .unwrap_or_else(|| "<unknown>".into());
-        // Print number (1-based), name, description, and source file.
-        println!(
-            "  [{}] {:<width$} (from {})",
-            index + 1, // Use 1-based indexing for user display
-            cmd_def.description,
-            filename,
-            width = max_name_len + 1 // Pad name for alignment
-        );
+        let line = format!("{} (from {})", cmd_def.description, filename);
+        choice_map.insert(line.clone(), cmd_def);
     }
 
-    // Loop to prompt user for input until a valid selection is made or they quit.
-    loop {
-        print!("\nEnter the number of the command to execute (or 'q' to quit): ");
-        // Ensure the prompt is displayed immediately.
-        io::stdout().flush().context("Failed to flush stdout")?;
+    let mut fzf_child = ProcessCommand::new("fzf")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .context("Failed to spawn fzf for command selection")?;
 
-        let mut input = String::new();
-        // Read the user's input line.
-        io::stdin()
-            .read_line(&mut input)
-            .context("Failed to read user input")?;
-
-        let trimmed_input = input.trim(); // Remove leading/trailing whitespace
-
-        // Check if the user wants to quit.
-        if trimmed_input.eq_ignore_ascii_case("q") {
-            println!("Exiting.");
-            return Ok(());
+    {
+        let mut stdin = fzf_child
+            .stdin
+            .take()
+            .context("Failed to open fzf stdin")?;
+        for choice in choice_map.keys() {
+            writeln!(stdin, "{}", choice).context("Failed to write to fzf stdin")?;
         }
-
-        // Try parsing the input as a 1-based index number.
-        match trimmed_input.parse::<usize>() {
-            Ok(num) if num > 0 && num <= commands_vec.len() => {
-                // Input is a valid number within the range of available commands.
-                let selected_index = num - 1; // Convert to 0-based index for vector access.
-                let selected_cmd_def = &commands_vec[selected_index];
-
-                // Execute the selected command, passing the original CLI arguments.
-                return execute_command(selected_cmd_def, cmd_args).with_context(|| {
-                    format!(
-                        "Failed to execute command snippet '{}'",
-                        selected_cmd_def.description
-                    )
-                });
-            }
-            Ok(_) => {
-                // Input is a number, but it's outside the valid range.
-                eprintln!(
-                    "Invalid selection. Please enter a number between 1 and {}.",
-                    commands_vec.len()
-                );
-            }
-            Err(_) => {
-                // Input could not be parsed as a number.
-                eprintln!("Invalid input. Please enter a number or 'q' to quit.");
-            }
-        }
-        // If input was invalid, the loop continues and prompts again.
     }
-    // The loop is only exited by returning Ok(()) on 'q' or returning the result
-    // of execute_command on valid selection.
+
+    let mut selected = String::new();
+    {
+        let mut stdout = fzf_child
+            .stdout
+            .take()
+            .context("Failed to open fzf stdout")?;
+        stdout
+            .read_to_string(&mut selected)
+            .context("Failed to read fzf output")?;
+    }
+
+    let status = fzf_child
+        .wait()
+        .context("Failed to wait for fzf process")?;
+    if !status.success() {
+        println!("No selection made. Exiting.");
+        return Ok(());
+    }
+
+    let selected = selected.trim();
+    let selected_cmd_def = choice_map
+        .get(selected)
+        .with_context(|| format!("Selected command '{}' not found", selected))?;
+
+    return execute_command(selected_cmd_def, cmd_args).with_context(|| {
+        format!("Failed to execute command snippet '{}'", selected_cmd_def.description)
+    });
 }
 
 /// Executes the specified command snippet, appending any provided arguments safely quoted.
