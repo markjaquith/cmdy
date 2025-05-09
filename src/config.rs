@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
-use dirs;
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
-use toml;
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
