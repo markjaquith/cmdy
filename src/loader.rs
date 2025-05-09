@@ -1,7 +1,6 @@
 use crate::types::{CommandDef, FileDef};
 use anyhow::{bail, Context, Result};
 use std::{collections::HashMap, fs, path::Path};
-use toml;
 
 /// Loads all command snippets from `.toml` files in the specified directory.
 /// Returns a map of description -> CommandDef, checking for duplicates.
@@ -18,7 +17,7 @@ pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     {
         let entry = entry.context("Failed to read directory entry")?;
         let path = entry.path();
-        if path.is_file() && path.extension().map_or(false, |ext| ext == "toml") {
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "toml") {
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read command file: {}", path.display()))?;
             match toml::from_str::<FileDef>(&content) {
