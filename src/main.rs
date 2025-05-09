@@ -118,7 +118,7 @@ fn main() -> Result<()> {
             clipboard
                 .set_text(cmd_def.command.clone())
                 .context("Failed to copy to clipboard")?;
-            println!("Copied '{}' to clipboard", cmd_def.description);
+            println!("Copied command to clipboard");
             return Ok(());
         }
         None => {}
