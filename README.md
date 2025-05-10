@@ -40,6 +40,7 @@ Alternatively, download a release binary from the project [releases page].
 
 - `--dir <DIRECTORY>` — Specify a custom snippets directory (overrides default).
 - `-t, --tag <TAG>` — Show only snippets tagged with `<TAG>` (can be repeated).
+- `-s, --search <SEARCH>` — Pre-populate the initial filter query for the interactive selector.
 
 ## Configuration
 

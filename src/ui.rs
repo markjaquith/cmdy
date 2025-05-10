@@ -14,6 +14,7 @@ pub fn choose_command<'a>(
     commands_vec: &'a [CommandDef],
     config_dir: &Path,
     filter_cmd: &str,
+    initial_search: Option<&str>,
 ) -> Result<&'a CommandDef> {
     // No snippets to choose from
     if commands_vec.is_empty() {
@@ -37,12 +38,32 @@ pub fn choose_command<'a>(
         choice_map.insert(raw_line.clone(), cmd_def);
         colored_lines.push(colored_line);
     }
-    // Launch filter command
+    // Launch filter command with optional pre-populated search
     let mut parts = filter_cmd.split_whitespace();
     let filter_prog = parts.next().unwrap();
-    let filter_args: Vec<&str> = parts.collect();
+    // Collect base arguments
+    let mut effective_args: Vec<String> = parts.map(|s| s.to_string()).collect();
+    // Insert initial search query based on underlying filter command
+    if let Some(query) = initial_search {
+        match filter_prog {
+            "fzf" => {
+                effective_args.push("--query".to_string());
+                effective_args.push(query.to_string());
+            }
+            prog if prog == "gum"
+                && effective_args
+                    .first()
+                    .map(|s| s == "filter")
+                    .unwrap_or(false) =>
+            {
+                effective_args.push("--filter".to_string());
+                effective_args.push(query.to_string());
+            }
+            _ => {}
+        }
+    }
     let mut filter_child = ProcessCommand::new(filter_prog)
-        .args(&filter_args)
+        .args(&effective_args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -92,8 +113,9 @@ pub fn select_and_execute_command(
     commands_vec: &[CommandDef],
     config_dir: &Path,
     filter_cmd: &str,
+    initial_search: Option<&str>,
 ) -> Result<()> {
-    let cmd_def = choose_command(commands_vec, config_dir, filter_cmd)?;
+    let cmd_def = choose_command(commands_vec, config_dir, filter_cmd, initial_search)?;
     execute_command(cmd_def).with_context(|| {
         format!(
             "Failed to execute command snippet '{}'",
