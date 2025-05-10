@@ -20,10 +20,6 @@ consolidate-commits = true
 tag-name = "v{{version}}"
 pre-release-commit-message = "chore: release {{version}}"
 
-[package.metadata.rusty-hook]
-pre-commit = "cargo fmt -- --check && cargo clippy -- -D warnings"
-commit-msg = "scripts/check-commit-msg.sh"
-
 [[bin]]
 name = "cmdy"
 path = "src/main.rs"
@@ -37,6 +33,3 @@ shell-escape = "0.1.5"
 tempfile = "3.19.1"
 toml = "0.8.20"
 arboard = "2"
-
-[dev-dependencies]
-rusty-hook = "^0.11.2"
