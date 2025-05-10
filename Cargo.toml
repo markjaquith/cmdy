@@ -13,6 +13,13 @@ categories = ["command-line-utilities"]
 [package.metadata.alias]
 fix = "clippy --fix && fmt"
 
+[package.metadata.release]
+push = true
+publish = true
+consolidate-commits = true
+tag-name = "v{{version}}"
+pre-release-commit-message = "chore: release {{version}}"
+
 [[bin]]
 name = "cmdy"
 path = "src/main.rs"
@@ -26,4 +33,5 @@ shell-escape = "0.1.5"
 tempfile = "3.19.1"
 toml = "0.8.20"
 arboard = "2"
+
 

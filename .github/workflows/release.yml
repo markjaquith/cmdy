@@ -1,0 +1,29 @@
+---
+name: Release
+on:
+  push:
+    tags:
+      - v*.*.*  # Only run on version tags
+permissions:
+  contents: write
+  packages: write
+jobs:
+  release:
+    if: github.repository == 'markjaquith/cmdy'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - name: Install cargo-release
+        run: cargo install cargo-release
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Run cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --no-confirm
