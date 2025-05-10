@@ -8,6 +8,25 @@ use std::{
     path::Path,
     process::{Command as ProcessCommand, Stdio},
 };
+/// Remove ANSI escape sequences from the input string.
+fn strip_ansi_escapes(s: &str) -> String {
+    Regex::new(r"\x1b\[[0-9;]*m")
+        .unwrap()
+        .replace_all(s, "")
+        .to_string()
+}
+
+#[cfg(test)]
+mod ansi_tests {
+    use super::strip_ansi_escapes;
+
+    #[test]
+    fn test_strip_ansi_escapes() {
+        let input = "\x1b[31mHello\x1b[0m World \x1b[1;32m!";
+        let expected = "Hello World !";
+        assert_eq!(strip_ansi_escapes(input), expected);
+    }
+}
 
 /// Present the interactive chooser and return the selected snippet.
 pub fn choose_command<'a>(
@@ -113,10 +132,7 @@ pub fn choose_command<'a>(
         bail!("No selection made. Exiting.");
     }
     // Strip ANSI escapes
-    let key = Regex::new(r"\x1b\[[0-9;]*m")
-        .unwrap()
-        .replace_all(selected.trim(), "")
-        .to_string();
+    let key = strip_ansi_escapes(selected.trim());
     // Lookup the corresponding CommandDef
     choice_map
         .get(&key)
