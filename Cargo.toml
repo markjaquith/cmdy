@@ -20,6 +20,10 @@ consolidate-commits = true
 tag-name = "v{{version}}"
 pre-release-commit-message = "chore: release {{version}}"
 
+[package.metadata.rusty-hook]
+pre-commit = "cargo fmt -- --check && cargo clippy -- -D warnings"
+commit-msg = "scripts/check-commit-msg.sh"
+
 [[bin]]
 name = "cmdy"
 path = "src/main.rs"
