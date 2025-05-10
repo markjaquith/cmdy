@@ -1,0 +1,7 @@
+[tools]
+hk = "latest"
+pkl = "latest"
+
+[tasks]
+prelint = ""
+postlint = ""
