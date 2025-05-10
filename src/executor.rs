@@ -45,3 +45,41 @@ pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {
     }
     Ok(())
 }
+// --- Tests for executor ---
+// Only run on non-Windows platforms where `sh -c` is available
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    use super::*;
+    use crate::types::CommandDef;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_execute_command_success() {
+        let cmd = CommandDef {
+            description: "success".to_string(),
+            command: "true".to_string(),
+            source_file: PathBuf::from("dummy.toml"),
+            tags: Vec::new(),
+        };
+        // Should return Ok for exit status 0
+        assert!(execute_command(&cmd).is_ok());
+    }
+
+    #[test]
+    fn test_execute_command_failure() {
+        let cmd = CommandDef {
+            description: "failure".to_string(),
+            command: "false".to_string(),
+            source_file: PathBuf::from("dummy.toml"),
+            tags: Vec::new(),
+        };
+        // Should return Err for non-zero exit status
+        let err = execute_command(&cmd).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("failed with status"),
+            "unexpected error: {}",
+            msg
+        );
+    }
+}
