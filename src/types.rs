@@ -80,4 +80,32 @@ unknown_field = 123
         let result: Result<FileDef, _> = toml::from_str(toml_str);
         assert!(result.is_err(), "Unknown field should cause error");
     }
+    
+    #[test]
+    fn test_missing_description_field() {
+        // commands array exists but description is missing
+        let toml_str = r#"[[commands]]
+command = "echo hi"
+"#;
+        let result: Result<FileDef, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "Missing description should error");
+    }
+
+    #[test]
+    fn test_missing_command_field() {
+        // commands array exists but command is missing
+        let toml_str = r#"[[commands]]
+description = "desc"
+"#;
+        let result: Result<FileDef, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "Missing command should error");
+    }
+
+    #[test]
+    fn test_missing_commands_array() {
+        // No commands table at all
+        let toml_str = "";
+        let result: Result<FileDef, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "Missing commands array should error");
+    }
 }
