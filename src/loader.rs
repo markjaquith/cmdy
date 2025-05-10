@@ -1,5 +1,5 @@
 use crate::types::{CommandDef, FileDef};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::{collections::HashMap, fs, path::Path};
 
 /// Loads all command snippets from `.toml` files in the specified directory.

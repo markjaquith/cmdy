@@ -1,6 +1,6 @@
 use crate::executor::execute_command;
 use crate::types::CommandDef;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::{
     collections::HashMap,

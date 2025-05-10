@@ -4,7 +4,7 @@ mod loader;
 mod types;
 mod ui;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
