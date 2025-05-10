@@ -80,7 +80,7 @@ unknown_field = 123
         let result: Result<FileDef, _> = toml::from_str(toml_str);
         assert!(result.is_err(), "Unknown field should cause error");
     }
-    
+
     #[test]
     fn test_missing_description_field() {
         // commands array exists but description is missing

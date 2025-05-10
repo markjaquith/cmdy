@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use std::{fs, path::PathBuf};
 use serde::Deserialize;
+use std::{fs, path::PathBuf};
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
@@ -199,6 +199,40 @@ directories = ["one", "two"]
         let default = AppConfig::default();
         assert_eq!(cfg.filter_command, default.filter_command);
         assert!(cfg.directories.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// load_app_config errors when the config file is unreadable (I/O error)
+    fn test_load_app_config_io_error() -> Result<()> {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let tmp = tempdir()?;
+        // Set env to point to our temp dir
+        #[cfg(target_os = "macos")]
+        unsafe {
+            env::set_var("HOME", tmp.path());
+        }
+        #[cfg(not(target_os = "macos"))]
+        unsafe {
+            env::set_var("XDG_CONFIG_HOME", tmp.path());
+        }
+        // Create config directory and file
+        #[cfg(target_os = "macos")]
+        let base = tmp.path().join(".config").join("cmdy");
+        #[cfg(not(target_os = "macos"))]
+        let base = tmp.path().join("cmdy");
+        fs::create_dir_all(&base)?;
+        let cfg_file = base.join("cmdy.toml");
+        fs::write(&cfg_file, "filter_command = \"FOO\"")?;
+        // Remove read permissions
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&cfg_file)?.permissions();
+        perms.set_mode(0);
+        fs::set_permissions(&cfg_file, perms)?;
+        // Now loading should return an Err
+        let result = load_app_config();
+        assert!(result.is_err(), "Expected I/O error, got {:?}", result);
         Ok(())
     }
 }
