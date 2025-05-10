@@ -24,18 +24,18 @@ use clap::{Parser, Subcommand};
 
 use config::{determine_config_directory, load_app_config};
 use loader::load_commands;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use types::CommandDef;
 use ui::{choose_command, select_and_execute_command};
 /// Collect the list of directories to scan for command snippets.
 /// Always include the primary directory; only include extra_dirs if no --dir flag is provided.
 fn get_scan_dirs(
     cli_dir: &Option<PathBuf>,
-    primary: &PathBuf,
+    primary: &Path,
     extra_dirs: &[PathBuf],
 ) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    dirs.push(primary.clone());
+    dirs.push(primary.to_path_buf());
     if cli_dir.is_none() {
         dirs.extend_from_slice(extra_dirs);
     }
