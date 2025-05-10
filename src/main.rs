@@ -33,6 +33,9 @@ struct CliArgs {
     /// Filter to only show commands tagged with this value. May be used multiple times.
     #[arg(short = 't', long = "tag", value_name = "TAG")]
     tags: Vec<String>,
+    /// Pre-populate the initial search filter for the interactive selector
+    #[arg(short = 's', long = "search", value_name = "SEARCH")]
+    search: Option<String>,
     /// Subcommand to run (default: run the selected snippet)
     #[command(subcommand)]
     action: Option<Action>,
@@ -103,7 +106,12 @@ fn main() -> Result<()> {
     match cli_args.action {
         Some(Action::Edit) => {
             // Open selected snippet in editor
-            let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
+            let cmd_def = choose_command(
+                &commands_vec,
+                &config_dir,
+                &app_config.filter_command,
+                cli_args.search.as_deref(),
+            )?;
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
             std::process::Command::new(editor)
                 .arg(&cmd_def.source_file)
@@ -113,7 +121,12 @@ fn main() -> Result<()> {
         }
         Some(Action::Clip) => {
             // Copy selected snippet's command to clipboard
-            let cmd_def = choose_command(&commands_vec, &config_dir, &app_config.filter_command)?;
+            let cmd_def = choose_command(
+                &commands_vec,
+                &config_dir,
+                &app_config.filter_command,
+                cli_args.search.as_deref(),
+            )?;
             let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
             clipboard
                 .set_text(cmd_def.command.clone())
@@ -124,8 +137,13 @@ fn main() -> Result<()> {
         None => {}
     }
     // Default: run selected snippet
-    select_and_execute_command(&commands_vec, &config_dir, &app_config.filter_command)
-        .context("Failed during command selection or execution")?;
+    select_and_execute_command(
+        &commands_vec,
+        &config_dir,
+        &app_config.filter_command,
+        cli_args.search.as_deref(),
+    )
+    .context("Failed during command selection or execution")?;
 
     Ok(())
 }
