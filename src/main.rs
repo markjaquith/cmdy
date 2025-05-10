@@ -13,19 +13,27 @@ use arboard::Clipboard;
 pub struct Clipboard;
 #[cfg(test)]
 impl Clipboard {
-    pub fn new() -> Result<Self> { Ok(Clipboard) }
-    pub fn set_text(&mut self, _text: String) -> Result<()> { Ok(()) }
+    pub fn new() -> Result<Self> {
+        Ok(Clipboard)
+    }
+    pub fn set_text(&mut self, _text: String) -> Result<()> {
+        Ok(())
+    }
 }
 use clap::{Parser, Subcommand};
 
 use config::{determine_config_directory, load_app_config};
-use std::path::PathBuf;
 use loader::load_commands;
+use std::path::PathBuf;
 use types::CommandDef;
 use ui::{choose_command, select_and_execute_command};
 /// Collect the list of directories to scan for command snippets.
 /// Always include the primary directory; only include extra_dirs if no --dir flag is provided.
-fn get_scan_dirs(cli_dir: &Option<PathBuf>, primary: &PathBuf, extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+fn get_scan_dirs(
+    cli_dir: &Option<PathBuf>,
+    primary: &PathBuf,
+    extra_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     dirs.push(primary.clone());
     if cli_dir.is_none() {
@@ -54,7 +62,11 @@ mod scan_dirs_tests {
         let cli_dir: Option<PathBuf> = None;
         let extras = vec![PathBuf::from("/a"), PathBuf::from("/b")];
         let dirs = get_scan_dirs(&cli_dir, &primary, &extras);
-        let expected = vec![PathBuf::from("/base"), PathBuf::from("/a"), PathBuf::from("/b")];
+        let expected = vec![
+            PathBuf::from("/base"),
+            PathBuf::from("/a"),
+            PathBuf::from("/b"),
+        ];
         assert_eq!(dirs, expected);
     }
 }
