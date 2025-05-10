@@ -86,6 +86,15 @@ cargo test
 
 Ensure you have [fzf] installed in your `PATH` for interactive selection.
 
+## Release Process
+
+```sh
+# patch, or minor, or major
+cargo release patch --no-publish --execute
+git push --follow-tags
+```
+
+
 ## License
 
 Distributed under the MIT License. See [LICENSE] for details.
