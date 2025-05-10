@@ -23,18 +23,35 @@ pub fn choose_command<'a>(
             config_dir.display()
         );
     }
+    // Build display lines: show description plus tags (prefixed with '#')
     let mut choice_map: HashMap<String, &CommandDef> = HashMap::new();
     let prefix = "\x1b[33m";
     let suffix = "\x1b[0m";
     let mut colored_lines = Vec::new();
     for cmd_def in commands_vec.iter() {
-        let filename = cmd_def
-            .source_file
-            .file_name()
-            .map(|f| f.to_string_lossy())
-            .unwrap_or_else(|| "<unknown>".into());
-        let raw_line = format!("{} [{}]", cmd_def.description, filename);
-        let colored_line = format!("{} {}[{}]{}", cmd_def.description, prefix, filename, suffix);
+        // Prepare tag string: e.g., "#tag1 #tag2"
+        let tags_str = if cmd_def.tags.is_empty() {
+            String::new()
+        } else {
+            cmd_def
+                .tags
+                .iter()
+                .map(|t| format!("#{}", t))
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        // Raw (uncolored) line: description plus tags if any
+        let raw_line = if tags_str.is_empty() {
+            cmd_def.description.clone()
+        } else {
+            format!("{} {}", cmd_def.description, tags_str)
+        };
+        // Colored line for the filter UI
+        let colored_line = if tags_str.is_empty() {
+            cmd_def.description.clone()
+        } else {
+            format!("{} {}{}{}", cmd_def.description, prefix, tags_str, suffix)
+        };
         choice_map.insert(raw_line.clone(), cmd_def);
         colored_lines.push(colored_line);
     }
