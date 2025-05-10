@@ -123,6 +123,34 @@ pub fn choose_command<'a>(
         .copied()
         .with_context(|| format!("Selected command '{}' not found", key))
 }
+// --- Smoke test for full selection+execution flow ---
+#[cfg(all(test, not(target_os = "windows")))]
+mod smoke_tests {
+    use super::*;
+    use crate::types::CommandDef;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn smoke_select_and_execute() {
+        // Create two dummy commands; the filter will pick the first via head
+        let cmd1 = CommandDef {
+            description: "First".to_string(),
+            command: "echo first".to_string(),
+            source_file: PathBuf::from("x.toml"),
+            tags: Vec::new(),
+        };
+        let cmd2 = CommandDef {
+            description: "Second".to_string(),
+            command: "false".to_string(),
+            source_file: PathBuf::from("y.toml"),
+            tags: Vec::new(),
+        };
+        let commands = vec![cmd1, cmd2];
+        // Using head -n1 to auto-select the only entry
+        let res = select_and_execute_command(&commands, Path::new("."), "head -n1", None);
+        assert!(res.is_ok(), "Expected Ok, got {:?}", res);
+    }
+}
 
 /// Uses an external filter command (e.g., fzf) to select from available snippets,
 /// then executes the chosen command with provided arguments.
