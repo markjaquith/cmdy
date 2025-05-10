@@ -2,6 +2,17 @@
 name = "cmdy"
 version = "0.1.0"
 edition = "2021"
+authors = ["Mark Jaquith <mark@jaquith.me>"]
+license = "MIT"
+repository = "https://github.com/markjaquith/cmdy"
+description = "Search for and run sometimes-used commands"
+
+[package.metadata.alias]
+fix = "clippy --fix && fmt"
+
+[[bin]]
+name = "cmdy"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.98"
@@ -14,5 +25,3 @@ tempfile = "3.19.1"
 toml = "0.8.20"
 arboard = "2"
 
-[alias]
-fix = "clippy --fix && fmt"
