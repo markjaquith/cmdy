@@ -14,7 +14,7 @@ pub fn choose_command<'a>(
     commands_vec: &'a [CommandDef],
     config_dir: &Path,
     filter_cmd: &str,
-    initial_search: Option<&str>,
+    initial_query: Option<&str>,
 ) -> Result<&'a CommandDef> {
     // No snippets to choose from
     if commands_vec.is_empty() {
@@ -38,13 +38,13 @@ pub fn choose_command<'a>(
         choice_map.insert(raw_line.clone(), cmd_def);
         colored_lines.push(colored_line);
     }
-    // Launch filter command with optional pre-populated search
+    // Launch filter command with optional pre-populated query
     let mut parts = filter_cmd.split_whitespace();
     let filter_prog = parts.next().unwrap();
     // Collect base arguments
     let mut effective_args: Vec<String> = parts.map(|s| s.to_string()).collect();
-    // Insert initial search query based on underlying filter command
-    if let Some(query) = initial_search {
+    // Insert initial query based on underlying filter command
+    if let Some(query) = initial_query {
         match filter_prog {
             "fzf" => {
                 effective_args.push("--query".to_string());
@@ -113,9 +113,9 @@ pub fn select_and_execute_command(
     commands_vec: &[CommandDef],
     config_dir: &Path,
     filter_cmd: &str,
-    initial_search: Option<&str>,
+    initial_query: Option<&str>,
 ) -> Result<()> {
-    let cmd_def = choose_command(commands_vec, config_dir, filter_cmd, initial_search)?;
+    let cmd_def = choose_command(commands_vec, config_dir, filter_cmd, initial_query)?;
     execute_command(cmd_def).with_context(|| {
         format!(
             "Failed to execute command snippet '{}'",
