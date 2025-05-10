@@ -34,3 +34,50 @@ pub struct CommandDef {
     /// Optional tags associated with this command snippet.
     pub tags: Vec<String>,
 }
+// --- Tests for types deserialization ---
+#[cfg(test)]
+mod tests {
+    use super::FileDef;
+    use toml;
+
+    #[test]
+    fn test_filedef_deserialize_success() {
+        let toml_str = r#"
+[[commands]]
+description = "desc"
+command = "echo hi"
+tags = ["a", "b"]
+"#;
+        let fd: FileDef = toml::from_str(toml_str).expect("Failed to parse FileDef");
+        assert_eq!(fd.commands.len(), 1);
+        let cs = &fd.commands[0];
+        assert_eq!(cs.description, "desc");
+        assert_eq!(cs.command, "echo hi");
+        assert_eq!(cs.tags, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn test_command_snippet_default_tags() {
+        let toml_str = r#"
+[[commands]]
+description = "no-tags"
+command = "echo"
+"#;
+        let fd: FileDef = toml::from_str(toml_str).expect("Failed to parse FileDef");
+        assert_eq!(fd.commands.len(), 1);
+        let cs = &fd.commands[0];
+        assert!(cs.tags.is_empty(), "Expected default empty tags");
+    }
+
+    #[test]
+    fn test_filedef_deny_unknown_fields() {
+        let toml_str = r#"
+[[commands]]
+description = "desc"
+command = "echo"
+unknown_field = 123
+"#;
+        let result: Result<FileDef, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "Unknown field should cause error");
+    }
+}

@@ -6,6 +6,9 @@ authors = ["Mark Jaquith <mark@jaquith.me>"]
 license = "MIT"
 repository = "https://github.com/markjaquith/cmdy"
 description = "Lists and runs predefined command snippets"
+readme = "README.md"
+keywords = ["cli", "commands", "runner"]
+categories = ["command-line-utilities"]
 
 [package.metadata.alias]
 fix = "clippy --fix && fmt"
@@ -17,7 +20,6 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.98"
 clap = { version = "4.5.36", features = ["derive"] }
-dirs = "6.0.0"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 shell-escape = "0.1.5"

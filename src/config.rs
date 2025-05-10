@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
 use std::{fs, path::PathBuf};
+use serde::Deserialize;
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
@@ -25,13 +25,17 @@ impl Default for AppConfig {
 /// Loads the application configuration from a TOML file.
 /// Checks ~/.config/cmdy/cmdy.toml (macOS) or $XDG_CONFIG_HOME/cmdy/cmdy.toml, falling back to defaults.
 pub fn load_app_config() -> Result<AppConfig> {
+    // Determine where to look for cmdy.toml
     let config_path = {
         #[cfg(target_os = "macos")]
-        let base = dirs::home_dir()
-            .map(|p| p.join(".config"))
-            .unwrap_or_else(|| PathBuf::from("."));
+        let base = std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(".config");
         #[cfg(not(target_os = "macos"))]
-        let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let base = std::env::var("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
         base.join("cmdy").join("cmdy.toml")
     };
     if config_path.is_file() {
@@ -53,27 +57,20 @@ pub fn load_app_config() -> Result<AppConfig> {
 /// Uses the `--dir` flag if provided, otherwise defaults to ~/.config/cmdy/commands or XDG config.
 pub fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<PathBuf> {
     if let Some(dir) = cli_dir_flag {
-        Ok(dir.clone())
-    } else {
-        let default_path = if cfg!(target_os = "macos") {
-            dirs::home_dir().map(|mut path| {
-                path.push(".config");
-                path.push("cmdy");
-                path.push("commands");
-                path
-            })
-        } else {
-            dirs::config_dir().map(|mut path| {
-                path.push("cmdy");
-                path.push("commands");
-                path
-            })
-        };
-        match default_path {
-            Some(path) => Ok(path),
-            None => Ok(PathBuf::from("./commands")),
-        }
+        return Ok(dir.clone());
     }
+    // No CLI override: use XDG or HOME
+    #[cfg(target_os = "macos")]
+    let base = std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".config");
+    #[cfg(not(target_os = "macos"))]
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let path = base.join("cmdy").join("commands");
+    Ok(path)
 }
 
 // --- Tests for config ---
@@ -105,22 +102,18 @@ mod tests {
         let cli_dir = None;
         let result = determine_config_directory(&cli_dir)?;
         let expected = if cfg!(target_os = "macos") {
-            dirs::home_dir()
-                .map(|mut path| {
-                    path.push(".config");
-                    path.push("cmdy");
-                    path.push("commands");
-                    path
-                })
-                .unwrap()
+            env::var("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(".config")
+                .join("cmdy")
+                .join("commands")
         } else {
-            dirs::config_dir()
-                .map(|mut path| {
-                    path.push("cmdy");
-                    path.push("commands");
-                    path
-                })
-                .unwrap()
+            env::var("XDG_CONFIG_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("cmdy")
+                .join("commands")
         };
         assert_eq!(result, expected);
         Ok(())
