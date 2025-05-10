@@ -127,4 +127,29 @@ command = "echo ok"
         assert!(commands.contains_key("OK"));
         Ok(())
     }
+    
+    #[test]
+    fn test_load_commands_duplicate_names() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let dir = temp_dir.path().to_path_buf();
+        let file1 = (
+            "one.toml",
+            r#"[[commands]]
+description = "X"
+command = "echo 1"
+"#,
+        );
+        let file2 = (
+            "two.toml",
+            r#"[[commands]]
+description = "X"
+command = "echo 2"
+"#,
+        );
+        setup_test_config(&dir, &[file1, file2])?;
+        let err = load_commands(&dir).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("Duplicate command snippet name 'X'"), "error message was: {}", msg);
+        Ok(())
+    }
 }
