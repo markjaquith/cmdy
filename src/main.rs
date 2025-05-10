@@ -5,7 +5,17 @@ mod types;
 mod ui;
 
 use anyhow::{Context, Result, bail};
+// Clipboard integration: use real clipboard in normal builds, stub in tests to avoid link errors
+#[cfg(not(test))]
 use arboard::Clipboard;
+#[cfg(test)]
+/// Stub Clipboard for tests
+pub struct Clipboard;
+#[cfg(test)]
+impl Clipboard {
+    pub fn new() -> Result<Self> { Ok(Clipboard) }
+    pub fn set_text(&mut self, _text: String) -> Result<()> { Ok(()) }
+}
 use clap::{Parser, Subcommand};
 
 use config::{determine_config_directory, load_app_config};
