@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Mark Jaquith <mark@jaquith.me>"]
 license = "MIT"
 repository = "https://github.com/markjaquith/cmdy"
-description = "Search for and run sometimes-used commands"
+description = "Lists and runs predefined command snippets"
 
 [package.metadata.alias]
 fix = "clippy --fix && fmt"
