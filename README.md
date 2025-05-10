@@ -34,13 +34,13 @@ Alternatively, download a release binary from the project [releases page].
 ### Subcommands
 
 - `cmdy edit` — Launch your `$EDITOR` on the selected snippet's TOML file.
-- `cmdy clip` — Copy the selected snippet's `command` string to your clipboard, then exit.
+- `cmdy clip` — Copy the selected snippet's `command` string to your clipboard.
 
 ### Flags
 
 - `--dir <DIRECTORY>` — Specify a custom snippets directory (overrides default).
 - `-t, --tag <TAG>` — Show only snippets tagged with `<TAG>` (can be repeated).
- - `-q, --query <QUERY>` — Pre-populate the initial filter query for the interactive selector.
+ - `-q, --query <QUERY>` — Pre-populate the initial filter query for the interactive selector. This works with `fzf` and `gum` (PRs welcome for other filtering tools).
 
 ## Configuration
 
@@ -62,16 +62,13 @@ Create one or more `.toml` files in your snippets directory, using the `[[comman
 
 ```toml
 [[commands]]
-# human-readable name shown in the menu
 description = "List all files with details"
-# the shell command to run
-command     = "ls -lAh --color=auto"
-# optional tags, used for filtering
-tags        = ["files", "list"]
+command = "ls -lAh --color=auto"
+tags = ["files", "list"]
 
 [[commands]]
 description = "Show current date and time"
-command     = "date '+%Y-%m-%d %H:%M:%S'"
+command = "date '+%Y-%m-%d %H:%M:%S'"
 ```
 
 Files without valid `[[commands]]` tables are skipped, and duplicate `description` names across files will error.
@@ -81,7 +78,7 @@ Files without valid `[[commands]]` tables are skipped, and duplicate `descriptio
 Clone the repo and build:
 
 ```sh
-git clone https://github.com/yourusername/cmdy.git
+git clone https://github.com/markjaquith/cmdy.git
 cd cmdy
 cargo build
 cargo test
