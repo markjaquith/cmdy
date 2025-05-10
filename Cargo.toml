@@ -13,3 +13,6 @@ shell-escape = "0.1.5"
 tempfile = "3.19.1"
 toml = "0.8.20"
 arboard = "2"
+
+[alias]
+fix = "clippy --fix && fmt"
