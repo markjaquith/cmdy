@@ -7,12 +7,47 @@ mod ui;
 use anyhow::{Context, Result, bail};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 
 use config::{determine_config_directory, load_app_config};
+use std::path::PathBuf;
 use loader::load_commands;
 use types::CommandDef;
 use ui::{choose_command, select_and_execute_command};
+/// Collect the list of directories to scan for command snippets.
+/// Always include the primary directory; only include extra_dirs if no --dir flag is provided.
+fn get_scan_dirs(cli_dir: &Option<PathBuf>, primary: &PathBuf, extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    dirs.push(primary.clone());
+    if cli_dir.is_none() {
+        dirs.extend_from_slice(extra_dirs);
+    }
+    dirs
+}
+// Unit tests for directory scanning behavior
+#[cfg(test)]
+mod scan_dirs_tests {
+    use super::get_scan_dirs;
+    use std::path::PathBuf;
+
+    #[test]
+    fn with_dir_flag_only_primary() {
+        let primary = PathBuf::from("/only");
+        let cli_dir = Some(primary.clone());
+        let extras = vec![PathBuf::from("/a"), PathBuf::from("/b")];
+        let dirs = get_scan_dirs(&cli_dir, &primary, &extras);
+        assert_eq!(dirs, vec![primary]);
+    }
+
+    #[test]
+    fn without_dir_flag_includes_extras() {
+        let primary = PathBuf::from("/base");
+        let cli_dir: Option<PathBuf> = None;
+        let extras = vec![PathBuf::from("/a"), PathBuf::from("/b")];
+        let dirs = get_scan_dirs(&cli_dir, &primary, &extras);
+        let expected = vec![PathBuf::from("/base"), PathBuf::from("/a"), PathBuf::from("/b")];
+        assert_eq!(dirs, expected);
+    }
+}
 
 /// Top-level CLI options and subcommand
 #[derive(Parser, Debug)]
@@ -62,28 +97,30 @@ fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     println!("Using configuration directory: {:?}", config_dir);
 
-    // Load commands from the primary directory
-    let mut commands_map = load_commands(&config_dir)
-        .with_context(|| format!("Failed to load command definitions from {:?}", config_dir))?;
-    // Load additional directories from config (skipped if --dir flag is provided)
-    if cli_args.dir.is_none() {
-        for extra_dir in &app_config.directories {
-            if extra_dir.is_dir() {
-                let extra_map = load_commands(extra_dir).with_context(|| {
-                    format!("Failed to load command definitions from {:?}", extra_dir)
-                })?;
-                for (name, cmd_def) in extra_map {
-                    if commands_map.contains_key(&name) {
-                        let existing = &commands_map[&name];
-                        bail!(
-                            "Duplicate command snippet name '{}' found.\n  Defined in: {}\n  Also defined in: {}",
-                            name,
-                            cmd_def.source_file.display(),
-                            existing.source_file.display()
-                        );
-                    }
-                    commands_map.insert(name, cmd_def);
+    // Collect directories to scan: primary first, extras only if no --dir flag
+    let scan_dirs = get_scan_dirs(&cli_args.dir, &config_dir, &app_config.directories);
+
+    // Load commands from the first directory
+    let mut commands_map = load_commands(&scan_dirs[0])
+        .with_context(|| format!("Failed to load command definitions from {:?}", scan_dirs[0]))?;
+
+    // Merge commands from remaining directories
+    for extra_dir in scan_dirs.iter().skip(1) {
+        if extra_dir.is_dir() {
+            let extra_map = load_commands(extra_dir).with_context(|| {
+                format!("Failed to load command definitions from {:?}", extra_dir)
+            })?;
+            for (name, cmd_def) in extra_map {
+                if commands_map.contains_key(&name) {
+                    let existing = &commands_map[&name];
+                    bail!(
+                        "Duplicate command snippet name '{}' found.\n  Defined in: {}\n  Also defined in: {}",
+                        name,
+                        cmd_def.source_file.display(),
+                        existing.source_file.display()
+                    );
                 }
+                commands_map.insert(name, cmd_def);
             }
         }
     }
