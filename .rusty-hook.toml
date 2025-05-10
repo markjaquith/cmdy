@@ -1,5 +1,6 @@
 [hooks]
 pre-commit = "cargo test"
+prepare-commit-msg = "exec < /dev/tty && koji --hook || true"
 
 [logging]
 verbose = true
