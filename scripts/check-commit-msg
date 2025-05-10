@@ -9,7 +9,9 @@ msg=$(head -n1 "$msg_file")
 
 if ! echo "$msg" | grep -qE "$regex"; then
   echo "❌ Commit message does not follow Conventional Commits:"
-  echo "→ \"$msg\""
+  echo "——————"
+	echo $msg
+  echo "——————"
   echo
   echo "Expected: <type>(<scope>): <description>"
   echo "Example: feat(cli): add support for config files"

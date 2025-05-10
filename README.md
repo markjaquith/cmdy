@@ -19,8 +19,6 @@ Requires Rust and [cargo].
 cargo install cmdy
 ```
 
-Alternatively, download a release binary from the project [releases page].
-
 ## Quickstart
 
 1. Create a snippets directory (default location is `$XDG_CONFIG_HOME/cmdy/commands` or `~/.config/cmdy/commands`).
@@ -101,5 +99,4 @@ Distributed under the MIT License. See [LICENSE] for details.
 
 [fzf]: https://github.com/junegunn/fzf
 [cargo]: https://doc.rust-lang.org/cargo/
-[releases page]: https://github.com/yourusername/cmdy/releases
 [LICENSE]: LICENSE

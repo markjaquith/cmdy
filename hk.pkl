@@ -38,12 +38,10 @@ hooks {
         }
     }
 
-    ["prepare-commit-msg"] {
-        // this hook is run before the commit message editor is launched
-        // it can be used to modify the commit message
+    ["commit-msg"] {
         steps {
-            ["koji-conventional-commits"] {
-                check = "exec < /dev/tty && koji --hook || true"
+            ["conventional-commits"] {
+                check = "scripts/check-commit-msg {{commit_msg_file}}"
             }
         }
     }
