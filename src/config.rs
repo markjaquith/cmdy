@@ -81,6 +81,7 @@ pub fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<Path
 mod tests {
     use super::*;
     use tempfile::tempdir;
+    use std::{env, fs, path::PathBuf};
 
     #[test]
     /// Tests that the `--dir` flag correctly overrides the default config directory.
@@ -117,6 +118,71 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(result, expected);
+        Ok(())
+    }
+    
+    #[test]
+    /// load_app_config returns defaults when no config file is present
+    fn test_load_app_config_default() -> Result<()> {
+        // Ensure no config environment variables
+        env::remove_var("XDG_CONFIG_HOME");
+        env::remove_var("HOME");
+        let cfg = load_app_config()?;
+        let default = AppConfig::default();
+        assert_eq!(cfg.filter_command, default.filter_command);
+        assert!(cfg.directories.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    /// load_app_config loads valid TOML and parses fields
+    fn test_load_app_config_file_parsed() -> Result<()> {
+        let tmp = tempdir()?;
+        // Determine config path based on OS
+        let (_config_dir, config_file) = if cfg!(target_os = "macos") {
+            env::set_var("HOME", tmp.path());
+            let base = tmp.path().join(".config").join("cmdy");
+            fs::create_dir_all(&base)?;
+            let file = base.join("cmdy.toml");
+            (base, file)
+        } else {
+            env::set_var("XDG_CONFIG_HOME", tmp.path());
+            let base = tmp.path().join("cmdy");
+            fs::create_dir_all(&base)?;
+            let file = base.join("cmdy.toml");
+            (base, file)
+        };
+        // Write a valid config
+        let content = r#"
+filter_command = "TESTCMD"
+directories = ["one", "two"]
+"#;
+        fs::write(&config_file, content)?;
+        let cfg = load_app_config()?;
+        assert_eq!(cfg.filter_command, "TESTCMD");
+        assert_eq!(cfg.directories, vec![PathBuf::from("one"), PathBuf::from("two")]);
+        Ok(())
+    }
+
+    #[test]
+    /// load_app_config falls back to defaults on parse error
+    fn test_load_app_config_invalid_toml() -> Result<()> {
+        let tmp = tempdir()?;
+        if cfg!(target_os = "macos") {
+            env::set_var("HOME", tmp.path());
+            let base = tmp.path().join(".config").join("cmdy");
+            fs::create_dir_all(&base)?;
+            fs::write(base.join("cmdy.toml"), "not toml")?;
+        } else {
+            env::set_var("XDG_CONFIG_HOME", tmp.path());
+            let base = tmp.path().join("cmdy");
+            fs::create_dir_all(&base)?;
+            fs::write(base.join("cmdy.toml"), "not toml")?;
+        }
+        let cfg = load_app_config()?;
+        let default = AppConfig::default();
+        assert_eq!(cfg.filter_command, default.filter_command);
+        assert!(cfg.directories.is_empty());
         Ok(())
     }
 }
