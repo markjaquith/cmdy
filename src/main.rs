@@ -27,6 +27,7 @@ use ui::{choose_command, select_and_execute_command};
 struct CliArgs {
     /// Optional directory to load command definitions from.
     /// Defaults to standard config locations based on OS.
+    /// When specified, only this directory is scanned; config.toml's `directories` are ignored.
     #[arg(long, value_name = "DIRECTORY")]
     dir: Option<PathBuf>,
 
@@ -64,23 +65,25 @@ fn main() -> Result<()> {
     // Load commands from the primary directory
     let mut commands_map = load_commands(&config_dir)
         .with_context(|| format!("Failed to load command definitions from {:?}", config_dir))?;
-    // Load additional directories from config
-    for extra_dir in &app_config.directories {
-        if extra_dir.is_dir() {
-            let extra_map = load_commands(extra_dir).with_context(|| {
-                format!("Failed to load command definitions from {:?}", extra_dir)
-            })?;
-            for (name, cmd_def) in extra_map {
-                if commands_map.contains_key(&name) {
-                    let existing = &commands_map[&name];
-                    bail!(
-                        "Duplicate command snippet name '{}' found.\n  Defined in: {}\n  Also defined in: {}",
-                        name,
-                        cmd_def.source_file.display(),
-                        existing.source_file.display()
-                    );
+    // Load additional directories from config (skipped if --dir flag is provided)
+    if cli_args.dir.is_none() {
+        for extra_dir in &app_config.directories {
+            if extra_dir.is_dir() {
+                let extra_map = load_commands(extra_dir).with_context(|| {
+                    format!("Failed to load command definitions from {:?}", extra_dir)
+                })?;
+                for (name, cmd_def) in extra_map {
+                    if commands_map.contains_key(&name) {
+                        let existing = &commands_map[&name];
+                        bail!(
+                            "Duplicate command snippet name '{}' found.\n  Defined in: {}\n  Also defined in: {}",
+                            name,
+                            cmd_def.source_file.display(),
+                            existing.source_file.display()
+                        );
+                    }
+                    commands_map.insert(name, cmd_def);
                 }
-                commands_map.insert(name, cmd_def);
             }
         }
     }
