@@ -1,5 +1,5 @@
 use crate::types::CommandDef;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::process::{Command as ProcessCommand, Stdio};
 
 /// Executes the specified command snippet, appending any provided arguments safely quoted.
