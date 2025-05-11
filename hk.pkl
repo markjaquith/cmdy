@@ -1,4 +1,3 @@
-// vim:ft=pkl tabstop=4 shiftwidth=4 expandtab
 amends "package://github.com/jdx/hk/releases/download/v1.0.0/hk@1.0.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.0.0/hk@1.0.0#/Builtins.pkl"
 
@@ -6,36 +5,22 @@ local linters = new Mapping<String, Step> {
     // uses builtin prettier linter config
     ["prettier"] = Builtins.prettier
 
-    // define a custom linter
+    // Custom linter for pkl files
     ["pkl"] {
         glob = "*.pkl"
         check = "pkl eval {{files}} >/dev/null"
     }
 
-    ["rs"] {
-        glob = "*.rs"
-        check = "cargo clippy --all-targets --all-features -- -D warnings"
-        fix = "cargo clippy --all-targets --all-features --fix; cargo fmt"
-    }
+    ["cargo-check"] = Builtins.cargo_check
+    ["cargo-clippy"] = Builtins.cargo_clippy
+    ["cargo-fmt"] = Builtins.cargo_fmt
 }
 
 hooks {
     ["pre-commit"] {
-        fix = true           // automatically modify files with available linter fixes
+        fix = true
         stash = "patch-file" // stashes unstaged changes while running fix steps
-        steps {
-            // "prelint" here is simply a name to define the step
-            ["prelint"] {
-                // if a step has a "check" script it will execute that
-                check = "mise run prelint"
-                exclusive = true // ensures that the step runs in isolation
-            }
-            ...linters // add all linters defined above
-            ["postlint"] {
-                check = "mise run postlint"
-                exclusive = true
-            }
-        }
+        steps = linters
     }
 
     ["commit-msg"] {
@@ -45,10 +30,11 @@ hooks {
             }
         }
     }
-    // instead of pre-commit, you can instead define pre-push hooks
     ["pre-push"] {
+        fix = false
         steps = linters
     }
+
     // "fix" and "check" are special steps for `hk fix` and `hk check` commands
     ["fix"] {
         fix = true
