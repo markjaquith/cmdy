@@ -18,7 +18,6 @@ local linters = new Mapping<String, Step> {
 
 hooks {
     ["pre-commit"] {
-        fix = true
         stash = "patch-file" // stashes unstaged changes while running fix steps
         steps = linters
     }
@@ -31,13 +30,11 @@ hooks {
         }
     }
     ["pre-push"] {
-        fix = false
         steps = linters
     }
 
     // "fix" and "check" are special steps for `hk fix` and `hk check` commands
     ["fix"] {
-        fix = true
         steps = linters
     }
     ["check"] {
