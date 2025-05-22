@@ -38,7 +38,6 @@ pub struct CommandDef {
 #[cfg(test)]
 mod tests {
     use super::FileDef;
-    use toml;
 
     #[test]
     fn test_filedef_deserialize_success() {

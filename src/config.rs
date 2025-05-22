@@ -228,7 +228,7 @@ directories = ["one", "two"]
         // Remove read permissions
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&cfg_file)?.permissions();
-        perms.set_mode(0);
+        perms.set_mode(0o0);
         fs::set_permissions(&cfg_file, perms)?;
         // Now loading should return an Err
         let result = load_app_config();
