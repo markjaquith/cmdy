@@ -2,7 +2,7 @@ use crate::types::CommandDef;
 use anyhow::{Context, Result, bail};
 use std::process::{Command as ProcessCommand, Stdio};
 
-/// Executes the specified command snippet, appending any provided arguments safely quoted.
+/// Executes the specified command snippet.
 pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {
     #[cfg(debug_assertions)]
     println!(
