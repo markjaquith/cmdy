@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::{Path, PathBuf}};
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
@@ -22,15 +22,15 @@ impl Default for AppConfig {
     }
 }
 
-fn expand_tilde(path: &PathBuf) -> PathBuf {
+fn expand_tilde(path: &Path) -> PathBuf {
     if let Some(path_str) = path.to_str() {
-        if path_str.starts_with("~/") {
+        if let Some(stripped) = path_str.strip_prefix("~/") {
             if let Ok(home) = env::var("HOME") {
-                return PathBuf::from(home).join(&path_str[2..]);
+                return PathBuf::from(home).join(stripped);
             }
         }
     }
-    path.clone()
+    path.to_path_buf()
 }
 
 /// Loads the application configuration from a TOML file.
@@ -54,7 +54,7 @@ pub fn load_app_config() -> Result<AppConfig> {
             .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
         match toml::from_str::<AppConfig>(&content) {
             Ok(mut cfg) => {
-                cfg.directories = cfg.directories.iter().map(expand_tilde).collect();
+                cfg.directories = cfg.directories.iter().map(|p| expand_tilde(p)).collect();
                 return Ok(cfg);
             }
             Err(e) => eprintln!(
