@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::{fs, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
@@ -20,6 +20,17 @@ impl Default for AppConfig {
             directories: Vec::new(),
         }
     }
+}
+
+fn expand_tilde(path: &PathBuf) -> PathBuf {
+    if let Some(path_str) = path.to_str() {
+        if path_str.starts_with("~/") {
+            if let Ok(home) = env::var("HOME") {
+                return PathBuf::from(home).join(&path_str[2..]);
+            }
+        }
+    }
+    path.clone()
 }
 
 /// Loads the application configuration from a TOML file.
@@ -42,7 +53,10 @@ pub fn load_app_config() -> Result<AppConfig> {
         let content = fs::read_to_string(&config_path)
             .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
         match toml::from_str::<AppConfig>(&content) {
-            Ok(cfg) => return Ok(cfg),
+            Ok(mut cfg) => {
+                cfg.directories = cfg.directories.iter().map(expand_tilde).collect();
+                return Ok(cfg);
+            }
             Err(e) => eprintln!(
                 "Warning: Failed to parse config file {}: {}. Using defaults.",
                 config_path.display(),
@@ -233,6 +247,40 @@ directories = ["one", "two"]
         // Now loading should return an Err
         let result = load_app_config();
         assert!(result.is_err(), "Expected I/O error, got {:?}", result);
+        Ok(())
+    }
+
+    #[test]
+    /// load_app_config expands ~ in directory paths
+    fn test_load_app_config_tilde_expansion() -> Result<()> {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let tmp = tempdir()?;
+        unsafe {
+            env::set_var("HOME", tmp.path());
+        }
+        let (_config_dir, config_file) = if cfg!(target_os = "macos") {
+            let base = tmp.path().join(".config").join("cmdy");
+            fs::create_dir_all(&base)?;
+            let file = base.join("cmdy.toml");
+            (base, file)
+        } else {
+            unsafe {
+                env::set_var("XDG_CONFIG_HOME", tmp.path());
+            }
+            let base = tmp.path().join("cmdy");
+            fs::create_dir_all(&base)?;
+            let file = base.join("cmdy.toml");
+            (base, file)
+        };
+        let content = r#"
+filter_command = "fzf"
+directories = ["~/test/path", "/absolute/path"]
+"#;
+        fs::write(&config_file, content)?;
+        let cfg = load_app_config()?;
+        assert_eq!(cfg.directories.len(), 2);
+        assert_eq!(cfg.directories[0], tmp.path().join("test/path"));
+        assert_eq!(cfg.directories[1], PathBuf::from("/absolute/path"));
         Ok(())
     }
 }
