@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Running pre-push checks..."
+
+echo "→ cargo fmt --check"
+cargo fmt -- --check
+
+echo "→ cargo clippy"
+cargo clippy -- -D warnings
+
+echo "→ cargo build --release"
+cargo build --release
+
+echo "→ cargo test"
+cargo test
+
+echo "✓ All checks passed!"
