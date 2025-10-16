@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 /// Represents global application settings loaded from cmdy.toml.
 #[derive(Debug, Deserialize)]
