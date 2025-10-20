@@ -129,7 +129,7 @@ pub fn choose_command<'a>(
         .wait()
         .context("Failed to wait for filter process")?;
     if !status.success() {
-        bail!("No selection made. Exiting.");
+        std::process::exit(1);
     }
     // Strip ANSI escapes
     let key = strip_ansi_escapes(selected.trim());
