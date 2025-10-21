@@ -34,6 +34,7 @@ pub fn choose_command<'a>(
     config_dir: &Path,
     filter_cmd: &str,
     initial_query: Option<&str>,
+    exclude_tags: &[String],
 ) -> Result<&'a CommandDef> {
     // No snippets to choose from
     if commands_vec.is_empty() {
@@ -52,12 +53,13 @@ pub fn choose_command<'a>(
         let tags_str = if cmd_def.tags.is_empty() {
             String::new()
         } else {
-            cmd_def
+            let filtered_tags: Vec<String> = cmd_def
                 .tags
                 .iter()
+                .filter(|t| !exclude_tags.contains(t))
                 .map(|t| format!("#{}", t))
-                .collect::<Vec<_>>()
-                .join(" ")
+                .collect();
+            filtered_tags.join(" ")
         };
         // Raw (uncolored) line: description plus tags if any
         let raw_line = if tags_str.is_empty() {
@@ -163,7 +165,7 @@ mod smoke_tests {
         };
         let commands = vec![cmd1, cmd2];
         // Using head -n1 to auto-select the only entry
-        let res = select_and_execute_command(&commands, Path::new("."), "head -n1", None);
+        let res = select_and_execute_command(&commands, Path::new("."), "head -n1", None, &[]);
         assert!(res.is_ok(), "Expected Ok, got {:?}", res);
     }
 }
@@ -175,8 +177,15 @@ pub fn select_and_execute_command(
     config_dir: &Path,
     filter_cmd: &str,
     initial_query: Option<&str>,
+    exclude_tags: &[String],
 ) -> Result<()> {
-    let cmd_def = choose_command(commands_vec, config_dir, filter_cmd, initial_query)?;
+    let cmd_def = choose_command(
+        commands_vec,
+        config_dir,
+        filter_cmd,
+        initial_query,
+        exclude_tags,
+    )?;
     execute_command(cmd_def).with_context(|| {
         format!(
             "Failed to execute command snippet '{}'",

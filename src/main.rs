@@ -173,6 +173,7 @@ fn main() -> Result<()> {
                 &config_dir,
                 &app_config.filter_command,
                 cli_args.query.as_deref(),
+                &cli_args.tags,
             )?;
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
             std::process::Command::new(editor)
@@ -188,6 +189,7 @@ fn main() -> Result<()> {
                 &config_dir,
                 &app_config.filter_command,
                 cli_args.query.as_deref(),
+                &cli_args.tags,
             )?;
             let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
             clipboard
@@ -204,6 +206,7 @@ fn main() -> Result<()> {
         &config_dir,
         &app_config.filter_command,
         cli_args.query.as_deref(),
+        &cli_args.tags,
     )
     .context("Failed during command selection or execution")?;
 
