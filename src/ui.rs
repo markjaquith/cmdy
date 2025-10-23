@@ -100,6 +100,17 @@ pub fn choose_command<'a>(
             _ => {}
         }
     }
+    // Add header for fzf when tags are filtered
+    if filter_prog == "fzf" && !exclude_tags.is_empty() {
+        let header = exclude_tags
+            .iter()
+            .map(|t| format!("#{}", t))
+            .collect::<Vec<_>>()
+            .join(" ");
+        effective_args.push("--header".to_string());
+        effective_args.push(header);
+        effective_args.push("--header-first".to_string());
+    }
     let mut filter_child = ProcessCommand::new(filter_prog)
         .args(&effective_args)
         .stdin(Stdio::piped())
