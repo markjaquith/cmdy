@@ -16,9 +16,9 @@ fix = "clippy --fix && fmt"
 [package.metadata.release]
 push = true
 publish = true
-consolidate-commits = true
+consolidate-commits = false
 tag-name = "v{{version}}"
-pre-release-commit-message = "chore: release {{version}}"
+pre-release-commit-message = "chore: release"
 
 [[bin]]
 name = "cmdy"
