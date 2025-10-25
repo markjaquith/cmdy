@@ -164,6 +164,12 @@ fn main() -> Result<()> {
         }
     }
 
+    // Check if we have any commands to work with
+    if commands_vec.is_empty() {
+        eprintln!("No command snippets found in: {}", config_dir.display());
+        return Ok(());
+    }
+
     // Dispatch based on subcommand
     match cli_args.action {
         Some(Action::Edit) => {
