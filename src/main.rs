@@ -14,7 +14,7 @@ pub struct Clipboard;
 #[cfg(test)]
 impl Clipboard {
     pub fn new() -> Result<Self> {
-        Ok(Clipboard)
+        Ok(Self)
     }
     pub fn set_text(&mut self, _text: String) -> Result<()> {
         Ok(())
@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 use types::CommandDef;
 use ui::{choose_command, select_and_execute_command};
 /// Collect the list of directories to scan for command snippets.
-/// Always include the primary directory; only include extra_dirs if no --dir flag is provided.
+/// Always include the primary directory; only include `extra_dirs` if no --dir flag is provided.
 fn get_scan_dirs(
     cli_dir: &Option<PathBuf>,
     primary: &Path,
@@ -94,6 +94,9 @@ struct CliArgs {
     /// Pre-populate the initial filter query for the interactive selector
     #[arg(short = 'q', long = "query", value_name = "QUERY")]
     query: Option<String>,
+    /// Show the command that would be executed without running it
+    #[arg(long = "dry-run")]
+    dry_run: bool,
     /// Subcommand to run (default: run the selected snippet)
     #[command(subcommand)]
     action: Option<Action>,
@@ -117,7 +120,7 @@ fn main() -> Result<()> {
     // Determine the directory containing command definitions
     let config_dir = determine_config_directory(&cli_args.dir)?;
     #[cfg(debug_assertions)]
-    println!("Using configuration directory: {:?}", config_dir);
+    println!("Using configuration directory: {config_dir:?}");
 
     // Collect directories to scan: primary first, extras only if no --dir flag
     let scan_dirs = get_scan_dirs(&cli_args.dir, &config_dir, &app_config.directories);
@@ -130,7 +133,7 @@ fn main() -> Result<()> {
     for extra_dir in scan_dirs.iter().skip(1) {
         if extra_dir.is_dir() {
             let extra_map = load_commands(extra_dir).with_context(|| {
-                format!("Failed to load command definitions from {:?}", extra_dir)
+                format!("Failed to load command definitions from {extra_dir:?}")
             })?;
             for (name, cmd_def) in extra_map {
                 if commands_map.contains_key(&name) {
@@ -156,10 +159,7 @@ fn main() -> Result<()> {
         let filter_tags = &cli_args.tags;
         commands_vec.retain(|cmd| cmd.tags.iter().any(|tag| filter_tags.contains(tag)));
         if commands_vec.is_empty() {
-            eprintln!(
-                "No command snippets found matching tag(s): {:?}",
-                filter_tags
-            );
+            eprintln!("No command snippets found matching tag(s): {filter_tags:?}");
             return Ok(());
         }
     }
@@ -201,14 +201,27 @@ fn main() -> Result<()> {
         None => {}
     }
     // Default: run selected snippet
-    select_and_execute_command(
-        &commands_vec,
-        &config_dir,
-        &app_config.filter_command,
-        cli_args.query.as_deref(),
-        &cli_args.tags,
-    )
-    .context("Failed during command selection or execution")?;
+    if cli_args.dry_run {
+        // Dry-run mode: show command without executing
+        let cmd_def = choose_command(
+            &commands_vec,
+            &config_dir,
+            &app_config.filter_command,
+            cli_args.query.as_deref(),
+            &cli_args.tags,
+        )?;
+        println!("Would execute: {}", cmd_def.command);
+        println!("From file: {}", cmd_def.source_file.display());
+    } else {
+        select_and_execute_command(
+            &commands_vec,
+            &config_dir,
+            &app_config.filter_command,
+            cli_args.query.as_deref(),
+            &cli_args.tags,
+        )
+        .context("Failed during command selection or execution")?;
+    }
 
     Ok(())
 }

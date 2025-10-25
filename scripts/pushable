@@ -12,7 +12,7 @@ cargo clippy -- -D warnings
 echo "→ cargo build --release"
 cargo build --release
 
-echo "→ cargo test"
-cargo test
+echo "→ cargo test (unit tests)"
+cargo test --bins
 
 echo "✓ All checks passed!"

@@ -1,0 +1,41 @@
+# Example Git command snippets
+
+[[commands]]
+description = "Git status with short format"
+command = "git status -s"
+tags = ["git", "status"]
+
+[[commands]]
+description = "Git log with graph"
+command = "git log --oneline --graph --all --decorate"
+tags = ["git", "log", "history"]
+
+[[commands]]
+description = "Git diff staged changes"
+command = "git diff --staged"
+tags = ["git", "diff"]
+
+[[commands]]
+description = "Git push with upstream"
+command = "git push -u origin HEAD"
+tags = ["git", "push"]
+
+[[commands]]
+description = "Git interactive rebase last 5 commits"
+command = "git rebase -i HEAD~5"
+tags = ["git", "rebase", "interactive"]
+
+[[commands]]
+description = "Git stash with message"
+command = 'read -p "Stash message: " msg && git stash save "$msg"'
+tags = ["git", "stash"]
+
+[[commands]]
+description = "Git clean untracked files (dry run)"
+command = "git clean -nfd"
+tags = ["git", "clean"]
+
+[[commands]]
+description = "Git reset soft to previous commit"
+command = "git reset --soft HEAD~1"
+tags = ["git", "reset", "undo"]

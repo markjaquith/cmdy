@@ -48,7 +48,7 @@ pub fn choose_command<'a>(
     let prefix = "\x1b[33m";
     let suffix = "\x1b[0m";
     let mut colored_lines = Vec::new();
-    for cmd_def in commands_vec.iter() {
+    for cmd_def in commands_vec {
         // Prepare tag string: e.g., "#tag1 #tag2"
         let tags_str = if cmd_def.tags.is_empty() {
             String::new()
@@ -57,7 +57,7 @@ pub fn choose_command<'a>(
                 .tags
                 .iter()
                 .filter(|t| !exclude_tags.contains(t))
-                .map(|t| format!("#{}", t))
+                .map(|t| format!("#{t}"))
                 .collect();
             filtered_tags.join(" ")
         };
@@ -80,7 +80,7 @@ pub fn choose_command<'a>(
     let mut parts = filter_cmd.split_whitespace();
     let filter_prog = parts.next().unwrap();
     // Collect base arguments
-    let mut effective_args: Vec<String> = parts.map(|s| s.to_string()).collect();
+    let mut effective_args: Vec<String> = parts.map(std::string::ToString::to_string).collect();
     // Insert initial query based on underlying filter command
     if let Some(query) = initial_query {
         match filter_prog {
@@ -88,12 +88,7 @@ pub fn choose_command<'a>(
                 effective_args.push("--query".to_string());
                 effective_args.push(query.to_string());
             }
-            prog if prog == "gum"
-                && effective_args
-                    .first()
-                    .map(|s| s == "filter")
-                    .unwrap_or(false) =>
-            {
+            prog if prog == "gum" && effective_args.first().is_some_and(|s| s == "filter") => {
                 effective_args.push("--filter".to_string());
                 effective_args.push(query.to_string());
             }
@@ -104,7 +99,7 @@ pub fn choose_command<'a>(
     if filter_prog == "fzf" && !exclude_tags.is_empty() {
         let header = exclude_tags
             .iter()
-            .map(|t| format!("#{}", t))
+            .map(|t| format!("#{t}"))
             .collect::<Vec<_>>()
             .join(" ");
         effective_args.push("--header".to_string());
@@ -116,7 +111,7 @@ pub fn choose_command<'a>(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .with_context(|| format!("Failed to spawn filter command '{}'", filter_cmd))?;
+        .with_context(|| format!("Failed to spawn filter command '{filter_cmd}'"))?;
     // Feed choices
     {
         let mut stdin = filter_child
@@ -124,7 +119,7 @@ pub fn choose_command<'a>(
             .take()
             .context("Failed to open filter stdin")?;
         for line in &colored_lines {
-            writeln!(stdin, "{}", line).context("Failed to write to filter stdin")?;
+            writeln!(stdin, "{line}").context("Failed to write to filter stdin")?;
         }
     }
     // Read selection
@@ -150,7 +145,7 @@ pub fn choose_command<'a>(
     choice_map
         .get(&key)
         .copied()
-        .with_context(|| format!("Selected command '{}' not found", key))
+        .with_context(|| format!("Selected command '{key}' not found"))
 }
 // --- Smoke test for full selection+execution flow ---
 #[cfg(all(test, not(target_os = "windows")))]
@@ -177,7 +172,7 @@ mod smoke_tests {
         let commands = vec![cmd1, cmd2];
         // Using head -n1 to auto-select the only entry
         let res = select_and_execute_command(&commands, Path::new("."), "head -n1", None, &[]);
-        assert!(res.is_ok(), "Expected Ok, got {:?}", res);
+        assert!(res.is_ok(), "Expected Ok, got {res:?}");
     }
 }
 

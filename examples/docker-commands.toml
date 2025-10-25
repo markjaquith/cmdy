@@ -1,0 +1,41 @@
+# Example Docker command snippets
+
+[[commands]]
+description = "List all containers including stopped"
+command = "docker ps -a"
+tags = ["docker", "containers", "list"]
+
+[[commands]]
+description = "Remove all stopped containers"
+command = "docker container prune -f"
+tags = ["docker", "containers", "cleanup"]
+
+[[commands]]
+description = "Show container logs with follow"
+command = 'read -p "Container name/id: " c && docker logs -f "$c"'
+tags = ["docker", "logs", "debug"]
+
+[[commands]]
+description = "Execute bash in container"
+command = 'read -p "Container name/id: " c && docker exec -it "$c" /bin/bash'
+tags = ["docker", "exec", "shell"]
+
+[[commands]]
+description = "List Docker images sorted by size"
+command = "docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | sort -k2 -h"
+tags = ["docker", "images", "size"]
+
+[[commands]]
+description = "Remove dangling images"
+command = "docker image prune -f"
+tags = ["docker", "images", "cleanup"]
+
+[[commands]]
+description = "Docker system cleanup (careful!)"
+command = "docker system prune -a --volumes"
+tags = ["docker", "cleanup", "dangerous"]
+
+[[commands]]
+description = "Show Docker disk usage"
+command = "docker system df -v"
+tags = ["docker", "disk", "usage"]

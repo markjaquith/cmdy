@@ -38,7 +38,8 @@ cargo install cmdy
 
 - `--dir <DIRECTORY>` — Specify a custom snippets directory (overrides default).
 - `-t, --tag <TAG>` — Show only snippets tagged with `<TAG>` (can be repeated).
- - `-q, --query <QUERY>` — Pre-populate the initial filter query for the interactive selector. This works with `fzf` and `gum` (PRs welcome for other filtering tools).
+- `-q, --query <QUERY>` — Pre-populate the initial filter query for the interactive selector. This works with `fzf` and `gum` (PRs welcome for other filtering tools).
+- `--dry-run` — Show the command that would be executed without actually running it. Useful for verifying commands before execution.
 
 ## Configuration
 
@@ -83,6 +84,45 @@ cargo test
 ```
 
 Ensure you have [fzf] installed in your `PATH` for interactive selection.
+
+### Development Commands
+
+```sh
+# Run tests
+cargo test
+
+# Run linting
+cargo clippy
+
+# Format code
+cargo fmt
+
+# Run with debug output
+RUST_LOG=debug cargo run
+
+# Build release version
+cargo build --release
+
+# Check for security vulnerabilities
+cargo audit
+```
+
+### Project Structure
+
+```
+cmdy/
+├── src/              # Source code
+│   ├── main.rs      # Entry point and CLI parsing
+│   ├── config.rs    # Configuration management
+│   ├── types.rs     # Data structures
+│   ├── loader.rs    # TOML file loading
+│   ├── ui.rs        # User interface and selection
+│   └── executor.rs  # Command execution
+├── tests/           # Integration tests
+├── examples/        # Example command files
+├── .github/         # CI/CD workflows
+└── Cargo.toml       # Project manifest
+```
 
 ## Release Process
 

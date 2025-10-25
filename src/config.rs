@@ -17,7 +17,7 @@ pub struct AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        AppConfig {
+        Self {
             // Default fzf options: ANSI support, reverse layout, rounded border, 50% height
             filter_command: "fzf --ansi --layout=reverse --border=rounded --height=50%".to_string(),
             directories: Vec::new(),
@@ -37,14 +37,13 @@ fn expand_tilde(path: &Path) -> PathBuf {
 }
 
 /// Loads the application configuration from a TOML file.
-/// Checks ~/.config/cmdy/cmdy.toml (macOS) or $XDG_CONFIG_HOME/cmdy/cmdy.toml, falling back to defaults.
+/// Checks ~/.config/cmdy/cmdy.toml (macOS) or $`XDG_CONFIG_HOME/cmdy/cmdy.toml`, falling back to defaults.
 pub fn load_app_config() -> Result<AppConfig> {
     // Determine where to look for cmdy.toml
     let config_path = {
         #[cfg(target_os = "macos")]
         let base = std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."))
+            .map_or_else(|_| PathBuf::from("."), PathBuf::from)
             .join(".config");
         #[cfg(not(target_os = "macos"))]
         let base = std::env::var("XDG_CONFIG_HOME")
@@ -79,8 +78,7 @@ pub fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<Path
     // No CLI override: use XDG or HOME
     #[cfg(target_os = "macos")]
     let base = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
+        .map_or_else(|_| PathBuf::from("."), PathBuf::from)
         .join(".config");
     #[cfg(not(target_os = "macos"))]
     let base = std::env::var("XDG_CONFIG_HOME")
@@ -120,15 +118,13 @@ mod tests {
         let result = determine_config_directory(&cli_dir)?;
         let expected = if cfg!(target_os = "macos") {
             env::var("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("."))
+                .map_or_else(|_| PathBuf::from("."), PathBuf::from)
                 .join(".config")
                 .join("cmdy")
                 .join("commands")
         } else {
             env::var("XDG_CONFIG_HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("."))
+                .map_or_else(|_| PathBuf::from("."), PathBuf::from)
                 .join("cmdy")
                 .join("commands")
         };
@@ -137,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    /// load_app_config returns defaults when no config file is present
+    /// `load_app_config` returns defaults when no config file is present
     fn test_load_app_config_default() -> Result<()> {
         let _guard = ENV_LOCK.lock().unwrap();
         // Ensure no config environment variables
@@ -155,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    /// load_app_config loads valid TOML and parses fields
+    /// `load_app_config` loads valid TOML and parses fields
     fn test_load_app_config_file_parsed() -> Result<()> {
         let _guard = ENV_LOCK.lock().unwrap();
         let tmp = tempdir()?;
@@ -193,7 +189,7 @@ directories = ["one", "two"]
     }
 
     #[test]
-    /// load_app_config falls back to defaults on parse error
+    /// `load_app_config` falls back to defaults on parse error
     fn test_load_app_config_invalid_toml() -> Result<()> {
         let _guard = ENV_LOCK.lock().unwrap();
         let tmp = tempdir()?;
@@ -221,7 +217,7 @@ directories = ["one", "two"]
 
     #[test]
     #[cfg(unix)]
-    /// load_app_config errors when the config file is unreadable (I/O error)
+    /// `load_app_config` errors when the config file is unreadable (I/O error)
     fn test_load_app_config_io_error() -> Result<()> {
         let _guard = ENV_LOCK.lock().unwrap();
         let tmp = tempdir()?;
@@ -249,12 +245,12 @@ directories = ["one", "two"]
         fs::set_permissions(&cfg_file, perms)?;
         // Now loading should return an Err
         let result = load_app_config();
-        assert!(result.is_err(), "Expected I/O error, got {:?}", result);
+        assert!(result.is_err(), "Expected I/O error, got {result:?}");
         Ok(())
     }
 
     #[test]
-    /// load_app_config expands ~ in directory paths
+    /// `load_app_config` expands ~ in directory paths
     fn test_load_app_config_tilde_expansion() -> Result<()> {
         let _guard = ENV_LOCK.lock().unwrap();
         let tmp = tempdir()?;

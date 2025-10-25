@@ -15,7 +15,7 @@ pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {
     let command_to_run = cmd_def.command.clone();
 
     #[cfg(debug_assertions)]
-    println!("  Final Command String: {}", command_to_run);
+    println!("  Final Command String: {command_to_run}");
 
     let mut cmd_process = if cfg!(target_os = "windows") {
         let mut cmd = ProcessCommand::new("cmd");
@@ -75,11 +75,10 @@ mod tests {
         };
         // Should return Err for non-zero exit status
         let err = execute_command(&cmd).unwrap_err();
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(
             msg.contains("failed with status"),
-            "unexpected error: {}",
-            msg
+            "unexpected error: {msg}"
         );
     }
 }

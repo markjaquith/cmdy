@@ -3,7 +3,7 @@ use anyhow::{Context, Result, bail};
 use std::{collections::HashMap, fs, path::Path};
 
 /// Loads all command snippets from `.toml` files in the specified directory.
-/// Returns a map of description -> CommandDef, checking for duplicates.
+/// Returns a map of description -> `CommandDef`, checking for duplicates.
 pub fn load_commands(dir: &Path) -> Result<HashMap<String, CommandDef>> {
     let mut commands = HashMap::new();
 
@@ -67,14 +67,14 @@ mod tests {
         fs::create_dir_all(dir_path)?;
         for (name, content) in files {
             let filename = if name.ends_with(".toml") {
-                name.to_string()
+                (*name).to_string()
             } else {
-                format!("{}.toml", name)
+                format!("{name}.toml")
             };
             let file_path = dir_path.join(filename);
             let mut file = fs::File::create(&file_path)
                 .with_context(|| format!("Failed to create test file: {}", file_path.display()))?;
-            writeln!(file, "{}", content)?;
+            writeln!(file, "{content}")?;
         }
         Ok(())
     }
@@ -148,11 +148,10 @@ command = "echo 2"
         );
         setup_test_config(&dir, &[file1, file2])?;
         let err = load_commands(&dir).unwrap_err();
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(
             msg.contains("Duplicate command snippet name 'X'"),
-            "error message was: {}",
-            msg
+            "error message was: {msg}"
         );
         Ok(())
     }
