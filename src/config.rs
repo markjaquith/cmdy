@@ -46,9 +46,8 @@ pub fn load_app_config() -> Result<AppConfig> {
             .map_or_else(|_| PathBuf::from("."), PathBuf::from)
             .join(".config");
         #[cfg(not(target_os = "macos"))]
-        let base = std::env::var("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."));
+        let base =
+            std::env::var("XDG_CONFIG_HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from);
         base.join("cmdy").join("cmdy.toml")
     };
     if config_path.is_file() {
@@ -81,9 +80,7 @@ pub fn determine_config_directory(cli_dir_flag: &Option<PathBuf>) -> Result<Path
         .map_or_else(|_| PathBuf::from("."), PathBuf::from)
         .join(".config");
     #[cfg(not(target_os = "macos"))]
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let base = std::env::var("XDG_CONFIG_HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from);
     let path = base.join("cmdy").join("commands");
     Ok(path)
 }
