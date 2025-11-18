@@ -111,6 +111,7 @@ enum Action {
     Clip,
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     // Parse CLI arguments
     let cli_args = CliArgs::parse();
@@ -120,20 +121,27 @@ fn main() -> Result<()> {
     // Determine the directory containing command definitions
     let config_dir = determine_config_directory(&cli_args.dir)?;
     #[cfg(debug_assertions)]
-    println!("Using configuration directory: {config_dir:?}");
+    println!("Using configuration directory: {}", config_dir.display());
 
     // Collect directories to scan: primary first, extras only if no --dir flag
     let scan_dirs = get_scan_dirs(&cli_args.dir, &config_dir, &app_config.directories);
 
     // Load commands from the first directory
-    let mut commands_map = load_commands(&scan_dirs[0])
-        .with_context(|| format!("Failed to load command definitions from {:?}", scan_dirs[0]))?;
+    let mut commands_map = load_commands(&scan_dirs[0]).with_context(|| {
+        format!(
+            "Failed to load command definitions from {}",
+            scan_dirs[0].display()
+        )
+    })?;
 
     // Merge commands from remaining directories
     for extra_dir in scan_dirs.iter().skip(1) {
         if extra_dir.is_dir() {
             let extra_map = load_commands(extra_dir).with_context(|| {
-                format!("Failed to load command definitions from {extra_dir:?}")
+                format!(
+                    "Failed to load command definitions from {}",
+                    extra_dir.display()
+                )
             })?;
             for (name, cmd_def) in extra_map {
                 if commands_map.contains_key(&name) {
@@ -225,6 +233,7 @@ fn main() -> Result<()> {
             &app_config.filter_command,
             cli_args.query.as_deref(),
             &cli_args.tags,
+            app_config.overwrite_shell_command,
         )
         .context("Failed during command selection or execution")?;
     }

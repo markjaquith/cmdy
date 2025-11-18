@@ -13,6 +13,8 @@ pub struct AppConfig {
     pub filter_command: String,
     /// Additional directories to scan (non-recursively) for TOML snippet files.
     pub directories: Vec<PathBuf>,
+    /// If true, overwrite the last shell history entry with the executed command.
+    pub overwrite_shell_command: bool,
 }
 
 impl Default for AppConfig {
@@ -21,6 +23,7 @@ impl Default for AppConfig {
             // Default fzf options: ANSI support, reverse layout, rounded border, 50% height
             filter_command: "fzf --ansi --layout=reverse --border=rounded --height=50%".to_string(),
             directories: Vec::new(),
+            overwrite_shell_command: false,
         }
     }
 }

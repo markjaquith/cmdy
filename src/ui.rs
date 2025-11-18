@@ -171,7 +171,8 @@ mod smoke_tests {
         };
         let commands = vec![cmd1, cmd2];
         // Using head -n1 to auto-select the only entry
-        let res = select_and_execute_command(&commands, Path::new("."), "head -n1", None, &[]);
+        let res =
+            select_and_execute_command(&commands, Path::new("."), "head -n1", None, &[], false);
         assert!(res.is_ok(), "Expected Ok, got {res:?}");
     }
 }
@@ -184,6 +185,7 @@ pub fn select_and_execute_command(
     filter_cmd: &str,
     initial_query: Option<&str>,
     exclude_tags: &[String],
+    overwrite_shell_command: bool,
 ) -> Result<()> {
     let cmd_def = choose_command(
         commands_vec,
@@ -192,7 +194,7 @@ pub fn select_and_execute_command(
         initial_query,
         exclude_tags,
     )?;
-    execute_command(cmd_def).with_context(|| {
+    execute_command(cmd_def, overwrite_shell_command).with_context(|| {
         format!(
             "Failed to execute command snippet '{}'",
             cmd_def.description
