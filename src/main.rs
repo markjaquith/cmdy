@@ -135,14 +135,21 @@ fn main() -> Result<()> {
     let scan_dirs = get_scan_dirs(&cli_args.dir, &config_dir, &app_config.directories);
 
     // Load commands from the first directory
-    let mut commands_map = load_commands(&scan_dirs[0])
-        .with_context(|| format!("Failed to load command definitions from {}", scan_dirs[0].display()))?;
+    let mut commands_map = load_commands(&scan_dirs[0]).with_context(|| {
+        format!(
+            "Failed to load command definitions from {}",
+            scan_dirs[0].display()
+        )
+    })?;
 
     // Merge commands from remaining directories
     for extra_dir in scan_dirs.iter().skip(1) {
         if extra_dir.is_dir() {
             let extra_map = load_commands(extra_dir).with_context(|| {
-                format!("Failed to load command definitions from {}", extra_dir.display())
+                format!(
+                    "Failed to load command definitions from {}",
+                    extra_dir.display()
+                )
             })?;
             for (name, cmd_def) in extra_map {
                 if commands_map.contains_key(&name) {
