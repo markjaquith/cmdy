@@ -106,11 +106,20 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Action {
     /// Open the selected snippet in your $EDITOR
-    Edit,
+    Edit {
+        /// Filter to only show commands tagged with this value. May be used multiple times.
+        #[arg(short = 't', long = "tag", value_name = "TAG")]
+        tags: Vec<String>,
+    },
     /// Copy the selected snippet's command to the clipboard
-    Clip,
+    Clip {
+        /// Filter to only show commands tagged with this value. May be used multiple times.
+        #[arg(short = 't', long = "tag", value_name = "TAG")]
+        tags: Vec<String>,
+    },
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     // Parse CLI arguments
     let cli_args = CliArgs::parse();
@@ -120,20 +129,20 @@ fn main() -> Result<()> {
     // Determine the directory containing command definitions
     let config_dir = determine_config_directory(&cli_args.dir)?;
     #[cfg(debug_assertions)]
-    println!("Using configuration directory: {config_dir:?}");
+    println!("Using configuration directory: {}", config_dir.display());
 
     // Collect directories to scan: primary first, extras only if no --dir flag
     let scan_dirs = get_scan_dirs(&cli_args.dir, &config_dir, &app_config.directories);
 
     // Load commands from the first directory
     let mut commands_map = load_commands(&scan_dirs[0])
-        .with_context(|| format!("Failed to load command definitions from {:?}", scan_dirs[0]))?;
+        .with_context(|| format!("Failed to load command definitions from {}", scan_dirs[0].display()))?;
 
     // Merge commands from remaining directories
     for extra_dir in scan_dirs.iter().skip(1) {
         if extra_dir.is_dir() {
             let extra_map = load_commands(extra_dir).with_context(|| {
-                format!("Failed to load command definitions from {extra_dir:?}")
+                format!("Failed to load command definitions from {}", extra_dir.display())
             })?;
             for (name, cmd_def) in extra_map {
                 if commands_map.contains_key(&name) {
@@ -172,14 +181,19 @@ fn main() -> Result<()> {
 
     // Dispatch based on subcommand
     match cli_args.action {
-        Some(Action::Edit) => {
+        Some(Action::Edit {
+            tags: subcommand_tags,
+        }) => {
+            // Combine top-level tags with subcommand tags
+            let mut all_tags = cli_args.tags.clone();
+            all_tags.extend(subcommand_tags);
             // Open selected snippet in editor
             let cmd_def = choose_command(
                 &commands_vec,
                 &config_dir,
                 &app_config.filter_command,
                 cli_args.query.as_deref(),
-                &cli_args.tags,
+                &all_tags,
             )?;
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
             std::process::Command::new(editor)
@@ -188,14 +202,19 @@ fn main() -> Result<()> {
                 .context("Failed to launch editor")?;
             return Ok(());
         }
-        Some(Action::Clip) => {
+        Some(Action::Clip {
+            tags: subcommand_tags,
+        }) => {
+            // Combine top-level tags with subcommand tags
+            let mut all_tags = cli_args.tags.clone();
+            all_tags.extend(subcommand_tags);
             // Copy selected snippet's command to clipboard
             let cmd_def = choose_command(
                 &commands_vec,
                 &config_dir,
                 &app_config.filter_command,
                 cli_args.query.as_deref(),
-                &cli_args.tags,
+                &all_tags,
             )?;
             let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
             clipboard
