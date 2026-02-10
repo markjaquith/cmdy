@@ -2,8 +2,12 @@ amends "package://github.com/jdx/hk/releases/download/v1.0.0/hk@1.0.0#/Config.pk
 import "package://github.com/jdx/hk/releases/download/v1.0.0/hk@1.0.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-    // uses builtin prettier linter config
-    ["prettier"] = Builtins.prettier
+    // oxfmt for formatting JS, TS, JSON, YAML, Markdown, etc.
+    ["oxfmt"] {
+        glob = "*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,json5,yaml,yml,md,mdx,html,vue,css,scss,less,graphql,gql}"
+        check = "npx oxfmt --check {{files}}"
+        fix = "npx oxfmt {{files}}"
+    }
 
     // Custom linter for pkl files
     ["pkl"] {

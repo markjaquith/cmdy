@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - v*.*.*  # Only run on version tags
+      - v*.*.* # Only run on version tags
 permissions:
   contents: write
   packages: write
@@ -41,7 +41,7 @@ jobs:
         run: cargo test
 
   release:
-    needs: ci  # Only run release after CI passes
+    needs: ci # Only run release after CI passes
     if: github.repository == 'markjaquith/cmdy'
     runs-on: ubuntu-latest
     steps:
