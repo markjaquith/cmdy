@@ -53,7 +53,9 @@ pub fn execute_command(cmd_def: &CommandDef) -> Result<()> {
 
         let mut cmd = ProcessCommand::new("sh");
         cmd.arg("-c");
-        cmd.arg(&command_to_run);
+        // Prepend "exec " so the shell replaces itself with the command,
+        // avoiding an extra sh process that would spawn the command as a child.
+        cmd.arg(format!("exec {command_to_run}"));
 
         // exec() replaces the current process - it never returns on success
         let err = cmd.exec();
