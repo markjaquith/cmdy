@@ -5,18 +5,21 @@ This document provides recommended steps for the OpenAI Codex assistant when mak
 ## Workflow
 
 1. After applying code changes or patches, run:
+
    ```sh
    cargo check
    cargo fix --allow-dirty
    cargo fmt
    cargo clippy -- -D warnings
    ```
+
    - `cargo check` verifies that the code compiles without errors.
    - `cargo fix --allow-dirty` applies automatic fixes (e.g., unused imports) and allows minor edits to your working directory.
    - `cargo fmt` ensures consistent code formatting.
    - `cargo clippy -- -D warnings` checks for common mistakes and ensures no clippy warnings.
 
 2. Verify functionality and ensure all tests pass:
+
    ```sh
    cargo test                    # Unit tests
    cargo test --test integration # Integration tests
@@ -32,11 +35,13 @@ This document provides recommended steps for the OpenAI Codex assistant when mak
 When processing dependabot pull requests:
 
 1. Check all open dependabot PRs:
+
    ```sh
    gh pr list --author "app/dependabot" --state open
    ```
 
 2. For each PR, checkout and run validation:
+
    ```sh
    gh pr checkout <PR_NUMBER>
    ./scripts/pushable
@@ -61,6 +66,7 @@ When processing dependabot pull requests:
 The project uses `cargo-release` for version management. Follow these steps:
 
 1. Ensure all tests pass and CI is green:
+
    ```sh
    cargo test
    ./scripts/pushable
@@ -72,13 +78,14 @@ The project uses `cargo-release` for version management. Follow these steps:
    - **major** (0.1.5 → 1.0.0): Breaking changes
 
 3. Create the release:
+
    ```sh
    # For patch release (most common)
    cargo release patch --no-publish --execute
-   
+
    # For minor release
    cargo release minor --no-publish --execute
-   
+
    # For major release
    cargo release major --no-publish --execute
    ```
@@ -91,11 +98,12 @@ The project uses `cargo-release` for version management. Follow these steps:
    - Trigger GitHub Actions to publish to crates.io
 
 5. If a release fails CI, rollback and retry:
+
    ```sh
    # Delete the tag locally and remotely
    git tag -d v0.1.X
    git push origin :v0.1.X
-   
+
    # Fix the issue, then re-release
    cargo release patch --no-publish --execute
    ```
@@ -109,4 +117,3 @@ The project uses `cargo-release` for version management. Follow these steps:
 - Only add code comments when they explain something unusual or complex. Do not narrate all the code.
 - Always run `cargo fmt` before committing to ensure consistent formatting.
 - Ensure CI passes before merging any changes.
-

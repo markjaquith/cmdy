@@ -133,12 +133,12 @@ git push --follow-tags
 ```
 
 If a release fails CI on GitHub, delete the tag and retry:
+
 ```sh
 git tag -d v0.1.X
 git push origin :v0.1.X
 # Fix the issue, then re-release
 ```
-
 
 ## License
 
