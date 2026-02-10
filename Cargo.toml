@@ -25,7 +25,7 @@ name = "cmdy"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 clap = { version = "4.5.53", features = ["derive"] }
 regex = "1.12.3"
 serde = { version = "1.0.228", features = ["derive"] }
