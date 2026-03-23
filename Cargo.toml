@@ -30,7 +30,7 @@ clap = { version = "4.6.0", features = ["derive"] }
 regex = "1.12.3"
 serde = { version = "1.0.228", features = ["derive"] }
 shell-escape = "0.1.5"
-tempfile = "3.26.0"
+tempfile = "3.27.0"
 toml = "1.0.7"
 arboard = "3"
 
